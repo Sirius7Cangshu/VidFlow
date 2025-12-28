@@ -1,0 +1,37 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#4F46E5" />
+    </linearGradient>
+    <linearGradient id="shine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.25" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feOffset dx="0" dy="4" />
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feColorMatrix in="blur" type="matrix"
+        values="0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0.25 0" />
+      <feComposite in2="SourceGraphic" operator="over" />
+    </filter>
+  </defs>
+  
+  <!-- Rounded square background -->
+  <rect x="10" y="10" width="108" height="108" rx="28" fill="url(#bg)" filter="url(#softShadow)" />
+  
+  <!-- Subtle top shine -->
+  <path d="M38 18H90C104 18 110 24 110 38V46C88 42 70 38 52 28C45 24 41 21 38 18Z" fill="url(#shine)" />
+  
+  <!-- Main mark: play + download -->
+  <g fill="#FFFFFF">
+    <!-- Play triangle -->
+    <path d="M50 44C50 41.5 52.7 40 54.9 41.2L83 57.8C85 59 85 61.9 83 63.1L54.9 79.7C52.7 80.9 50 79.4 50 76.9V44Z" opacity="0.96"/>
+    <!-- Download arrow (centered under play) -->
+    <path d="M64 86C62.9 86 62 85.1 62 84V72C62 70.9 62.9 70 64 70C65.1 70 66 70.9 66 72V84C66 85.1 65.1 86 64 86Z" opacity="0.95"/>
+    <path d="M64 92C63.5 92 63 91.8 62.6 91.4L54.6 83.4C53.8 82.6 53.8 81.4 54.6 80.6C55.4 79.8 56.6 79.8 57.4 80.6L64 87.2L70.6 80.6C71.4 79.8 72.6 79.8 73.4 80.6C74.2 81.4 74.2 82.6 73.4 83.4L65.4 91.4C65 91.8 64.5 92 64 92Z" opacity="0.95"/>
+  </g>
+</svg>

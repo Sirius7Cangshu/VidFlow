@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Video Download Helper - Test Page</title>
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+			max-width: 1200px;
+			margin: 0 auto;
+			padding: 20px;
+			background-color: #f5f5f5;
+		}
+
+		.container {
+			background: white;
+			padding: 20px;
+			border-radius: 10px;
+			box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+			margin-bottom: 20px;
+		}
+
+		h1 {
+			color: #3b82f6;
+			text-align: center;
+		}
+
+		.video-container {
+			margin: 20px 0;
+			padding: 15px;
+			border: 2px solid #e5e7eb;
+			border-radius: 8px;
+		}
+
+		.video-title {
+			font-size: 18px;
+			font-weight: bold;
+			margin-bottom: 10px;
+			color: #374151;
+		}
+
+		.video-description {
+			color: #6b7280;
+			margin-bottom: 10px;
+		}
+
+		video {
+			width: 100%;
+			max-width: 600px;
+			height: auto;
+			border-radius: 8px;
+		}
+
+		.test-info {
+			background-color: #eff6ff;
+			border: 1px solid #bfdbfe;
+			padding: 15px;
+			border-radius: 8px;
+			margin-bottom: 20px;
+		}
+
+		.test-info h3 {
+			color: #1d4ed8;
+			margin-top: 0;
+		}
+
+		.dynamic-video-container {
+			border: 2px dashed #d1d5db;
+			padding: 20px;
+			text-align: center;
+			margin: 20px 0;
+		}
+
+		button {
+			background-color: #3b82f6;
+			color: white;
+			padding: 10px 20px;
+			border: none;
+			border-radius: 6px;
+			cursor: pointer;
+			font-size: 16px;
+		}
+
+		button:hover {
+			background-color: #2563eb;
+		}
+
+		.controls {
+			display: flex;
+			gap: 10px;
+			margin-top: 10px;
+			flex-wrap: wrap;
+		}
+
+		.source-info {
+			background-color: #f3f4f6;
+			padding: 10px;
+			border-radius: 6px;
+			font-size: 14px;
+			margin-top: 10px;
+		}
+	</style>
+</head>
+
+<body>
+	<div class="container">
+		<h1>🎥 Video Download Helper - Test Page</h1>
+
+		<div class="test-info">
+			<h3>How to Test</h3>
+			<ol>
+				<li>Install the Video Download Helper extension</li>
+				<li>Open this page in Chrome</li>
+				<li>Click the extension icon in the toolbar</li>
+				<li>The extension should detect the videos below</li>
+				<li>Try downloading different quality versions</li>
+			</ol>
+			<p><strong>Note:</strong> Some test videos may not load due to CORS restrictions when testing locally. The
+				extension should still detect them.</p>
+		</div>
+	</div>
+
+	<div class="container">
+		<h2>Test Video 1: Basic HTML5 Video</h2>
+		<div class="video-container">
+			<div class="video-title">Sample Video - Multiple Qualities</div>
+			<div class="video-description">This video has multiple source elements for quality testing.</div>
+
+			<video controls poster="https://via.placeholder.com/640x360/3b82f6/ffffff?text=Video+Preview">
+				<source src="https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4" type="video/mp4"
+					data-quality="720p">
+				<source src="https://sample-videos.com/zip/10/mp4/SampleVideo_640x360_1mb.mp4" type="video/mp4"
+					data-quality="360p">
+				<source src="https://sample-videos.com/zip/10/webm/SampleVideo_1280x720_1mb.webm" type="video/webm"
+					data-quality="720p">
+				Your browser does not support the video tag.
+			</video>
+
+			<div class="source-info">
+				<strong>Sources:</strong>
+				<ul>
+					<li>720p MP4: https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4</li>
+					<li>360p MP4: https://sample-videos.com/zip/10/mp4/SampleVideo_640x360_1mb.mp4</li>
+					<li>720p WebM: https://sample-videos.com/zip/10/webm/SampleVideo_1280x720_1mb.webm</li>
+				</ul>
+			</div>
+		</div>
+	</div>
+
+	<div class="container">
+		<h2>Test Video 2: Direct Source Video</h2>
+		<div class="video-container">
+			<div class="video-title">Big Buck Bunny - Direct Source</div>
+			<div class="video-description">Single source video for basic detection testing.</div>
+
+			<video controls src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">
+				Your browser does not support the video tag.
+			</video>
+
+			<div class="source-info">
+				<strong>Source:</strong>
+				https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4
+			</div>
+		</div>
+	</div>
+
+	<div class="container">
+		<h2>Test Video 3: Dynamically Loaded Video</h2>
+		<div class="video-container">
+			<div class="video-title">Dynamic Video Loading Test</div>
+			<div class="video-description">This video will be loaded dynamically to test runtime detection.</div>
+
+			<div id="dynamicVideoContainer" class="dynamic-video-container">
+				<p>Click the button below to load a video dynamically:</p>
+				<button onclick="loadDynamicVideo()">Load Dynamic Video</button>
+			</div>
+		</div>
+	</div>
+
+	<div class="container">
+		<h2>Test Video 4: Multiple Videos on Same Page</h2>
+		<div class="video-container">
+			<div class="video-title">Multiple Video Detection Test</div>
+			<div class="video-description">Testing detection of multiple videos on the same page.</div>
+
+			<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+				<div>
+					<h4>Video A</h4>
+					<video controls width="100%">
+						<source src="https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4"
+							type="video/mp4">
+					</video>
+				</div>
+				<div>
+					<h4>Video B</h4>
+					<video controls width="100%">
+						<source src="https://sample-videos.com/zip/10/mp4/SampleVideo_720x480_1mb.mp4" type="video/mp4">
+					</video>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="container">
+		<h2>Extension Testing Controls</h2>
+		<div class="controls">
+			<button onclick="simulateVideoLoad()">Simulate Video Load</button>
+			<button onclick="changeVideoSource()">Change Video Source</button>
+			<button onclick="addVideoElement()">Add New Video Element</button>
+			<button onclick="testNetworkRequest()">Test Network Request</button>
+			<button onclick="clearConsole()">Clear Console</button>
+		</div>
+
+		<div class="source-info" style="margin-top: 20px;">
+			<strong>Console Output:</strong> Open browser DevTools (F12) to see extension detection logs.
+			<br>
+			<strong>Extension Popup:</strong> Click the extension icon in the Chrome toolbar to see detected videos.
+		</div>
+	</div>
+
+	<script>
+		console.log('Video Download Helper Test Page Loaded');
+
+		let videoCounter = 0;
+
+		function loadDynamicVideo() {
+			const container = document.getElementById('dynamicVideoContainer');
+			const video = document.createElement('video');
+			video.controls = true;
+			video.width = 600;
+			video.src = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4';
+
+			container.innerHTML = '<p>Dynamic video loaded!</p>';
+			container.appendChild(video);
+
+			console.log('Dynamic video loaded:', video.src);
+		}
+
+		function simulateVideoLoad() {
+			// Simulate a video loading event
+			const videos = document.querySelectorAll('video');
+			if (videos.length > 0) {
+				const video = videos[0];
+				video.dispatchEvent(new Event('loadstart'));
+				console.log('Simulated loadstart event on first video');
+			}
+		}
+
+		function changeVideoSource() {
+			const videos = document.querySelectorAll('video');
+			if (videos.length > 0) {
+				const video = videos[0];
+				const newSrc = 'https://sample-videos.com/zip/10/mp4/SampleVideo_1920x1080_1mb.mp4';
+				video.src = newSrc;
+				console.log('Changed video source to:', newSrc);
+			}
+		}
+
+		function addVideoElement() {
+			videoCounter++;
+			const container = document.querySelector('.container:last-child');
+			const newVideoContainer = document.createElement('div');
+			newVideoContainer.className = 'video-container';
+			newVideoContainer.innerHTML = `
+                <div class="video-title">Dynamically Added Video ${videoCounter}</div>
+                <video controls width="400">
+                    <source src="https://sample-videos.com/zip/10/mp4/SampleVideo_480x360_1mb.mp4" type="video/mp4">
+                </video>
+            `;
+			container.appendChild(newVideoContainer);
+			console.log('Added new video element');
+		}
+
+		function testNetworkRequest() {
+			// Simulate a network request for a video file
+			const videoUrl = 'https://sample-videos.com/zip/10/mp4/SampleVideo_1024x768_1mb.mp4';
+
+			fetch(videoUrl, {
+				method: 'HEAD',  // Just check if the resource exists
+				mode: 'no-cors'  // Avoid CORS issues for testing
+			})
+				.then(() => {
+					console.log('Network request test completed for:', videoUrl);
+				})
+				.catch(err => {
+					console.log('Network request test (expected to fail due to CORS):', videoUrl);
+				});
+		}
+
+		function clearConsole() {
+			console.clear();
+			console.log('Console cleared - Video Download Helper Test Page');
+		}
+
+		// Test HLS stream simulation
+		function simulateHLSStream() {
+			const hlsUrl = 'https://example.com/video/playlist.m3u8';
+			console.log('Simulated HLS stream request:', hlsUrl);
+
+			// This would normally be detected by the extension's network monitoring
+			fetch(hlsUrl, { mode: 'no-cors' }).catch(() => {
+				console.log('HLS simulation complete (expected to fail)');
+			});
+		}
+
+		// Simulate video player initialization
+		function simulateVideoPlayer() {
+			console.log('Simulating video player initialization...');
+
+			// Simulate JWPlayer setup
+			if (typeof window.jwplayer === 'undefined') {
+				window.jwplayer = function () {
+					return {
+						setup: function (config) {
+							console.log('Simulated JWPlayer setup with config:', config);
+						}
+					};
+				};
+			}
+		}
+
+		// Initialize test environment
+		window.onload = function () {
+			console.log('Test page fully loaded');
+			console.log('Videos found on page:', document.querySelectorAll('video').length);
+
+			// Add some test data attributes
+			const videos = document.querySelectorAll('video');
+			videos.forEach((video, index) => {
+				video.setAttribute('data-test-id', `test-video-${index + 1}`);
+				video.setAttribute('data-title', `Test Video ${index + 1}`);
+			});
+		};
+
+		// Listen for messages from the extension (for debugging)
+		window.addEventListener('message', function (event) {
+			if (event.data.type === 'VIDEO_DETECTED') {
+				console.log('Extension detected video:', event.data);
+			}
+		});
+	</script>
+</body>
+
+</html>

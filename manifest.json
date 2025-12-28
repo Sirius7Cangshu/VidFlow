@@ -1,0 +1,81 @@
+{
+	"manifest_version": 3,
+	"name": "Video Download Helper",
+	"version": "1.0.0",
+	"description": "Advanced video downloader with multi-quality support for all websites except YouTube",
+	"permissions": [
+		"activeTab",
+		"downloads",
+		"storage",
+		"scripting",
+		"webRequest",
+		"declarativeNetRequest",
+		"tabs",
+		"contextMenus",
+		"tabCapture"
+	],
+	"host_permissions": [
+		"http://*/*",
+		"https://*/*",
+		"file:///*"
+	],
+	"background": {
+		"service_worker": "js/background.js"
+	},
+	"content_scripts": [
+		{
+			"matches": [
+				"http://*/*",
+				"https://*/*",
+				"file:///*"
+			],
+			"exclude_matches": [
+				"*://*.youtube.com/*",
+				"*://*.youtu.be/*",
+				"*://*.youtube-nocookie.com/*"
+			],
+			"js": [
+				"js/content.js"
+			],
+			"run_at": "document_end"
+		}
+	],
+	"action": {
+		"default_popup": "popup.html",
+		"default_title": "Video Download Helper",
+		"default_icon": {
+			"16": "icons/icon16.png",
+			"32": "icons/icon32.png",
+			"48": "icons/icon48.png",
+			"128": "icons/icon128.png"
+		}
+	},
+	"icons": {
+		"16": "icons/icon16.png",
+		"32": "icons/icon32.png",
+		"48": "icons/icon48.png",
+		"128": "icons/icon128.png"
+	},
+	"declarative_net_request": {
+		"rule_resources": [
+			{
+				"id": "ruleset_1",
+				"enabled": true,
+				"path": "rules.json"
+			}
+		]
+	},
+	"web_accessible_resources": [
+		{
+			"resources": [
+				"js/injected.js",
+				"css/overlay.css"
+			],
+			"matches": [
+				"http://*/*",
+				"https://*/*",
+				"file:///*"
+			]
+		}
+	]
+}

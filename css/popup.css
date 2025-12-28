@@ -1,0 +1,383 @@
+/* Video Download Helper - Popup Styles */
+
+/* Custom styles to complement Tailwind CSS */
+body {
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+	min-width: 384px;
+	max-width: 384px;
+	max-height: 600px;
+	margin: 0;
+	padding: 0;
+}
+
+:root {
+	--vdh-brand-1: #06B6D4;
+	--vdh-brand-2: #4F46E5;
+	--vdh-brand-shadow: rgba(2, 6, 23, 0.28);
+	--vdh-btn-bg: rgba(255, 255, 255, 0.16);
+	--vdh-btn-bg-hover: rgba(255, 255, 255, 0.24);
+}
+
+.vdh-header {
+	background: linear-gradient(135deg, var(--vdh-brand-1) 0%, var(--vdh-brand-2) 100%);
+	box-shadow: 0 10px 24px var(--vdh-brand-shadow);
+}
+
+.vdh-brand-mark {
+	width: 38px;
+	height: 38px;
+	border-radius: 14px;
+	background: rgba(255, 255, 255, 0.14);
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.22),
+		0 8px 16px rgba(2, 6, 23, 0.18);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+}
+
+.vdh-brand-icon {
+	width: 22px;
+	height: 22px;
+	image-rendering: -webkit-optimize-contrast;
+}
+
+.vdh-brand-name {
+	font-size: 18px;
+	font-weight: 800;
+	letter-spacing: 0.2px;
+}
+
+.vdh-brand-subtitle {
+	font-size: 12px;
+	opacity: 0.9;
+}
+
+.vdh-icon-btn {
+	width: 38px;
+	height: 38px;
+	border-radius: 14px;
+	background: var(--vdh-btn-bg);
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	transition: transform 120ms ease, background-color 120ms ease;
+}
+
+.vdh-icon-btn:hover {
+	background: var(--vdh-btn-bg-hover);
+	transform: translateY(-1px);
+}
+
+.vdh-icon-btn:active {
+	transform: translateY(0);
+}
+
+.vdh-primary-btn {
+	background: linear-gradient(135deg, var(--vdh-brand-1) 0%, var(--vdh-brand-2) 100%);
+	box-shadow: 0 8px 16px rgba(79, 70, 229, 0.24);
+}
+
+.vdh-primary-btn:hover {
+	filter: brightness(1.03);
+}
+
+.vdh-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	user-select: none;
+	color: rgba(17, 24, 39, 0.72);
+	font-size: 12px;
+	line-height: 1;
+}
+
+.vdh-toggle input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.vdh-toggle-track {
+	width: 34px;
+	height: 20px;
+	border-radius: 999px;
+	background: rgba(148, 163, 184, 0.55);
+	box-shadow: inset 0 1px 2px rgba(2, 6, 23, 0.16);
+	position: relative;
+	flex: 0 0 auto;
+}
+
+.vdh-toggle-track::after {
+	content: '';
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 14px;
+	height: 14px;
+	border-radius: 999px;
+	background: #ffffff;
+	box-shadow: 0 6px 14px rgba(2, 6, 23, 0.2);
+	transition: transform 140ms ease, background-color 140ms ease;
+}
+
+.vdh-toggle input:checked+.vdh-toggle-track {
+	background: linear-gradient(135deg, var(--vdh-brand-1) 0%, var(--vdh-brand-2) 100%);
+}
+
+.vdh-toggle input:checked+.vdh-toggle-track::after {
+	transform: translateX(14px);
+}
+
+.vdh-toggle-label {
+	white-space: nowrap;
+}
+
+.vdh-disabled-btn {
+	opacity: 0.55;
+	filter: grayscale(0.2);
+	cursor: not-allowed;
+}
+
+.vdh-disabled-btn:hover {
+	transform: none;
+	box-shadow: none;
+	filter: grayscale(0.2);
+}
+
+/* Custom scrollbar for video container */
+#videoContainer::-webkit-scrollbar {
+	width: 6px;
+}
+
+#videoContainer::-webkit-scrollbar-track {
+	background: #f1f5f9;
+}
+
+#videoContainer::-webkit-scrollbar-thumb {
+	background: #cbd5e1;
+	border-radius: 3px;
+}
+
+#videoContainer::-webkit-scrollbar-thumb:hover {
+	background: #94a3b8;
+}
+
+/* Smooth hover transitions */
+.download-btn {
+	transition: all 0.2s ease-in-out;
+	font-size: 12px;
+	padding: 4px 12px;
+	border-radius: 4px;
+}
+
+.download-btn:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Video item hover effects */
+.bg-white {
+	transition: all 0.2s ease-in-out;
+}
+
+/* Progress bar animation */
+#downloadProgress {
+	transition: width 0.3s ease-out;
+}
+
+/* Loading animation */
+@keyframes pulse {
+
+	0%,
+	100% {
+		opacity: 1;
+	}
+
+	50% {
+		opacity: 0.5;
+	}
+}
+
+.animate-pulse {
+	animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Status icons */
+.status-icon {
+	min-width: 16px;
+	text-align: center;
+}
+
+/* Quality badges */
+.quality-badge {
+	display: inline-block;
+	padding: 2px 6px;
+	border-radius: 10px;
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+}
+
+.quality-4k {
+	background-color: #dc2626;
+	color: white;
+}
+
+.quality-1080p {
+	background-color: #ea580c;
+	color: white;
+}
+
+.quality-720p {
+	background-color: #ca8a04;
+	color: white;
+}
+
+.quality-480p {
+	background-color: #16a34a;
+	color: white;
+}
+
+.quality-360p {
+	background-color: #2563eb;
+	color: white;
+}
+
+.quality-unknown {
+	background-color: #6b7280;
+	color: white;
+}
+
+/* Header gradient */
+.header-gradient {
+	background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+}
+
+/* Video type indicators */
+.type-network::before {
+	content: '🌐';
+	margin-right: 4px;
+}
+
+.type-streaming::before {
+	content: '📺';
+	margin-right: 4px;
+}
+
+.type-iframe::before {
+	content: '🔗';
+	margin-right: 4px;
+}
+
+/* YouTube warning styles */
+#youtubeWarning {
+	border-left: 4px solid #ef4444;
+	animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+	from {
+		transform: translateY(-10px);
+		opacity: 0;
+	}
+
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+/* Loading overlay */
+#loadingOverlay {
+	backdrop-filter: blur(4px);
+}
+
+/* Notification styles */
+.notification {
+	animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+	from {
+		transform: translateX(100%);
+		opacity: 0;
+	}
+
+	to {
+		transform: translateX(0);
+		opacity: 1;
+	}
+}
+
+/* Video poster placeholder */
+.video-poster-placeholder {
+	background: linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+		linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+		linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+		linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+	background-size: 8px 8px;
+	background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+}
+
+/* Button focus states */
+button:focus {
+	outline: 2px solid #3b82f6;
+	outline-offset: 2px;
+}
+
+/* Disable text selection on UI elements */
+.no-select {
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 400px) {
+	body {
+		min-width: 320px;
+		max-width: 320px;
+	}
+
+	.text-sm {
+		font-size: 12px;
+	}
+
+	.p-4 {
+		padding: 12px;
+	}
+}
+
+/* Dark mode support (if needed in future) */
+@media (prefers-color-scheme: dark) {
+	/* Dark mode styles could be added here */
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+	* {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+	.bg-gray-50 {
+		background-color: #ffffff;
+	}
+
+	.text-gray-600 {
+		color: #000000;
+	}
+
+	.border-gray-200 {
+		border-color: #000000;
+	}
+}

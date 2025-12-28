@@ -1,0 +1,57 @@
+{
+	"name": "video-download-helper",
+	"version": "1.0.0",
+	"description": "Advanced video downloader Chrome extension with multi-quality support",
+	"main": "js/background.js",
+	"scripts": {
+		"build": "echo 'Building extension...' && npm run generate-icons",
+		"generate-icons": "node generate-icons.js",
+		"test": "node tests/run-tests.js",
+		"lint": "echo 'Linting JavaScript files...'",
+		"package": "echo 'Creating extension package...' && zip -r video-download-helper.zip . -x '*.git*' 'node_modules/*' '*.log' 'package*.json' 'generate-icons.js'",
+		"dev": "echo 'Development mode - Load unpacked extension in Chrome'",
+		"clean": "rm -f icons/icon*.png && rm -f video-download-helper.zip"
+	},
+	"keywords": [
+		"chrome-extension",
+		"video-downloader",
+		"video-detection",
+		"browser-extension",
+		"download-manager"
+	],
+	"author": "Video Download Helper Team",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/example/video-download-helper"
+	},
+	"bugs": {
+		"url": "https://github.com/example/video-download-helper/issues"
+	},
+	"homepage": "https://github.com/example/video-download-helper#readme",
+	"devDependencies": {
+		"web-ext": "^7.0.0",
+		"eslint": "^8.0.0"
+	},
+	"engines": {
+		"node": ">=14.0.0"
+	},
+	"manifest": {
+		"version": "1.0.0",
+		"manifest_version": 3
+	},
+	"extension": {
+		"permissions": [
+			"activeTab",
+			"downloads",
+			"storage",
+			"scripting",
+			"webRequest",
+			"declarativeNetRequest"
+		],
+		"supported_browsers": [
+			"Chrome",
+			"Edge (Chromium)"
+		]
+	}
+}

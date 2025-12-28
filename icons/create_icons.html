@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Generate Icons for Video Download Helper</title>
+</head>
+
+<body>
+	<h1>Icon Generator</h1>
+	<p>This page generates icons for the Chrome extension.</p>
+
+	<canvas id="iconCanvas" width="128" height="128" style="border: 1px solid #ccc;"></canvas>
+	<br><br>
+	<button onclick="generateIcons()">Generate Icons</button>
+	<div id="downloads"></div>
+
+	<script>
+		function drawIcon(canvas, size) {
+			const ctx = canvas.getContext('2d');
+			canvas.width = size;
+			canvas.height = size;
+
+			// Clear canvas
+			ctx.clearRect(0, 0, size, size);
+
+			// Create gradient background
+			const gradient = ctx.createLinearGradient(0, 0, size, size);
+			gradient.addColorStop(0, '#3b82f6');
+			gradient.addColorStop(1, '#8b5cf6');
+
+			// Draw background circle
+			ctx.beginPath();
+			ctx.arc(size / 2, size / 2, size * 0.45, 0, 2 * Math.PI);
+			ctx.fillStyle = gradient;
+			ctx.fill();
+
+			// Add border
+			ctx.strokeStyle = '#2563eb';
+			ctx.lineWidth = size * 0.03;
+			ctx.stroke();
+
+			// Draw video play triangle
+			ctx.fillStyle = 'white';
+			ctx.globalAlpha = 0.9;
+			ctx.beginPath();
+			ctx.moveTo(size * 0.35, size * 0.27);
+			ctx.lineTo(size * 0.35, size * 0.73);
+			ctx.lineTo(size * 0.74, size * 0.5);
+			ctx.closePath();
+			ctx.fill();
+
+			// Draw download arrow
+			ctx.globalAlpha = 0.8;
+			ctx.strokeStyle = 'white';
+			ctx.lineWidth = size * 0.04;
+			ctx.lineCap = 'round';
+
+			// Vertical line
+			ctx.beginPath();
+			ctx.moveTo(size * 0.75, size * 0.2);
+			ctx.lineTo(size * 0.75, size * 0.4);
+			ctx.stroke();
+
+			// Arrow head
+			ctx.beginPath();
+			ctx.moveTo(size * 0.68, size * 0.33);
+			ctx.lineTo(size * 0.75, size * 0.4);
+			ctx.lineTo(size * 0.82, size * 0.33);
+			ctx.stroke();
+
+			// Add small indicator dots
+			ctx.fillStyle = 'white';
+			ctx.globalAlpha = 0.6;
+			const dotSize = size * 0.03;
+
+			// Top-left dot
+			ctx.beginPath();
+			ctx.arc(size * 0.23, size * 0.23, dotSize, 0, 2 * Math.PI);
+			ctx.fill();
+
+			// Bottom-right dot
+			ctx.beginPath();
+			ctx.arc(size * 0.77, size * 0.77, dotSize, 0, 2 * Math.PI);
+			ctx.fill();
+
+			// Bottom-left dot
+			ctx.beginPath();
+			ctx.arc(size * 0.23, size * 0.77, dotSize, 0, 2 * Math.PI);
+			ctx.fill();
+
+			ctx.globalAlpha = 1;
+		}
+
+		function generateIcons() {
+			const canvas = document.getElementById('iconCanvas');
+			const sizes = [16, 32, 48, 128];
+			const downloads = document.getElementById('downloads');
+			downloads.innerHTML = '<h3>Generated Icons:</h3>';
+
+			sizes.forEach(size => {
+				drawIcon(canvas, size);
+
+				// Create download link
+				canvas.toBlob(function (blob) {
+					const url = URL.createObjectURL(blob);
+					const link = document.createElement('a');
+					link.href = url;
+					link.download = `icon${size}.png`;
+					link.textContent = `Download icon${size}.png`;
+					link.style.display = 'block';
+					link.style.marginBottom = '10px';
+					downloads.appendChild(link);
+				});
+			});
+		}
+
+		// Generate preview icon on load
+		window.onload = function () {
+			const canvas = document.getElementById('iconCanvas');
+			drawIcon(canvas, 128);
+		};
+	</script>
+</body>
+
+</html>

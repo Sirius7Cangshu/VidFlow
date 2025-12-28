@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>视频助手</title>
+	<link rel="stylesheet" href="css/tailwind.min.css">
+	<link rel="stylesheet" href="css/popup.css">
+</head>
+
+<body class="w-96 bg-gray-50">
+	<!-- Header -->
+	<div class="vdh-header text-white p-4">
+		<div class="flex items-center justify-between">
+			<div class="flex items-center gap-3 min-w-0">
+				<div class="vdh-brand-mark">
+					<img src="icons/icon32.png" alt="视频助手" class="vdh-brand-icon">
+				</div>
+				<div class="min-w-0 leading-tight">
+					<div class="vdh-brand-name truncate">视频助手</div>
+					<div class="vdh-brand-subtitle truncate">捕获 · 下载 · 合并</div>
+				</div>
+			</div>
+			<div class="flex items-center gap-2">
+				<button id="settingsBtn" class="vdh-icon-btn" title="设置" aria-label="设置">
+					⚙️
+				</button>
+				<button id="refreshBtn" class="vdh-icon-btn" title="刷新" aria-label="刷新">
+					🔄
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- Status Section -->
+	<div class="p-4 border-b border-gray-200">
+		<div class="flex items-start justify-between gap-3">
+		<div id="statusMessage" class="flex items-center space-x-2 text-sm">
+				<div id="statusIcon">
+				<span class="text-blue-500">🔍</span>
+				</div>
+				<span id="statusText" class="text-gray-600">正在扫描视频…</span>
+			</div>
+
+			<label class="vdh-toggle" title="隐藏 blob/data 项，只显示可下载资源">
+				<input id="onlyDownloadableToggle" type="checkbox" checked>
+				<span class="vdh-toggle-track" aria-hidden="true"></span>
+				<span class="vdh-toggle-label">仅显示可下载</span>
+			</label>
+		</div>
+	</div>
+
+	<!-- Capture Settings (shown from ⚙️) -->
+	<div id="captureSettings" class="hidden p-4 border-b border-gray-200 bg-white">
+		<div class="text-sm font-extrabold text-gray-900">捕获设置</div>
+		<div class="mt-3 flex items-center gap-2 flex-wrap">
+			<span class="text-xs font-semibold text-gray-700">过滤器</span>
+			<input id="minSizeKB" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-24" value="300">
+			<span class="text-xs text-gray-500">KB</span>
+			<span class="text-xs text-gray-400">小于此值的资源不会被捕获</span>
+		</div>
+
+		<div class="mt-3 flex items-center gap-3 flex-wrap">
+			<span class="text-xs font-semibold text-gray-700">并发</span>
+			<label class="flex items-center gap-1 text-sm text-gray-700"><input type="radio" name="concurrency"
+					value="1">1</label>
+			<label class="flex items-center gap-1 text-sm text-gray-700"><input type="radio" name="concurrency"
+					value="2" checked>2</label>
+			<label class="flex items-center gap-1 text-sm text-gray-700"><input type="radio" name="concurrency"
+					value="3">3</label>
+			<span class="text-xs text-gray-400">（Range 分段下载）</span>
+		</div>
+	</div>
+
+	<!-- YouTube Warning -->
+	<div id="youtubeWarning" class="hidden bg-red-50 border-l-4 border-red-400 p-3">
+		<div class="flex items-center">
+			<span class="text-red-400 mr-2">⚠️</span>
+			<p class="text-sm text-red-700">
+				由于服务条款限制，禁止下载 YouTube 视频。
+			</p>
+		</div>
+	</div>
+
+	<!-- Video List -->
+	<div id="videoContainer" class="max-h-80 overflow-y-auto">
+		<div id="noVideos" class="p-8 text-center text-gray-500 hidden">
+			<div class="text-4xl mb-4 text-gray-300">📹</div>
+			<p class="text-lg font-medium mb-2">未找到资源</p>
+			<p class="text-sm">请先播放几秒或点击刷新</p>
+		</div>
+
+		<div id="videoList" class="space-y-2 p-4">
+			<!-- Video items will be dynamically inserted here -->
+		</div>
+	</div>
+
+	<!-- Download Progress Section -->
+	<div id="downloadSection" class="hidden border-t border-gray-200 p-4 bg-white">
+		<div class="flex items-center justify-between mb-2">
+			<span class="text-sm font-medium text-gray-700">下载中</span>
+			<span id="downloadPercentage" class="text-sm text-gray-500">0%</span>
+		</div>
+		<div class="w-full bg-gray-200 rounded-full h-2">
+			<div id="downloadProgress" class="bg-blue-600 h-2 rounded-full transition-all duration-300"
+				style="width: 0%"></div>
+		</div>
+		<div class="flex items-center justify-between mt-2 text-xs text-gray-500">
+			<span id="downloadSpeed">0 KB/s</span>
+			<span id="downloadETA">--</span>
+		</div>
+	</div>
+
+	<!-- Footer -->
+	<div class="bg-gray-100 p-3 text-center">
+		<p class="text-xs text-gray-500">
+			今日下载次数：<span id="downloadCount" class="font-medium">0</span>
+		</p>
+	</div>
+
+	<!-- Loading Overlay -->
+	<div id="loadingOverlay" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+		<div class="bg-white rounded-lg p-6 text-center">
+			<div class="animate-spin mb-4">
+				<span class="text-3xl text-blue-500">⏳</span>
+			</div>
+			<p class="text-gray-700">处理中…</p>
+		</div>
+	</div>
+
+	<script src="js/utils.js"></script>
+	<script src="js/popup.js"></script>
+</body>
+
+</html>
