@@ -718,24 +718,28 @@ class VideoDetector {
 	// Fetch video using page context (inherits all browser state)
 	async fetchVideoInPageContext(url) {
 		console.log('🎯 Fetching video in page context:', url);
-		console.log('🔍 URL analysis:', {
-			isBlob: url.startsWith('blob:'),
-			isData: url.startsWith('data:'),
-			protocol: new URL(url).protocol,
-			hostname: new URL(url).hostname,
-			pathname: new URL(url).pathname
-		});
 
-		// Blob URLs cannot be fetched directly from the extension.
+		// Check blob/data URLs first before attempting URL parsing
 		if (url.startsWith('blob:')) {
 			console.warn('❌ Detected blob URL, cannot download directly:', url);
 			throw new Error('Blob URLs cannot be downloaded. Please try refreshing the page and selecting a different video quality.');
 		}
 
-		// Check if this is a data URL
 		if (url.startsWith('data:')) {
 			console.warn('❌ Detected data URL, cannot download directly:', url);
 			throw new Error('Data URLs cannot be downloaded. Please try a different video source.');
+		}
+
+		// Safe URL analysis (only for logging)
+		try {
+			const parsed = new URL(url);
+			console.log('🔍 URL analysis:', {
+				protocol: parsed.protocol,
+				hostname: parsed.hostname,
+				pathname: parsed.pathname
+			});
+		} catch (e) {
+			console.warn('🔍 URL analysis failed (possibly relative URL):', url);
 		}
 
 		// Use page's native fetch (has access to all cookies, sessions, etc.)

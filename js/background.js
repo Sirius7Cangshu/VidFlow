@@ -133,13 +133,19 @@ function setupMessageHandlers() {
 				sendResponse({ success: true, prefs: capturePrefs });
 				return true;
 
-			case 'updateCapturePrefs':
-				updateCapturePrefs(request.prefs, sendResponse);
-				return true;
+		case 'updateCapturePrefs':
+			updateCapturePrefs(request.prefs, sendResponse);
+			return true;
 
-			default:
-				sendResponse({ error: 'Unknown action' });
-		}
+		case 'videoDetected':
+			// Content script notifies about detected videos; we can ignore since
+			// webRequest listener already captures network-level video requests.
+			sendResponse({ success: true });
+			return true;
+
+		default:
+			sendResponse({ error: 'Unknown action' });
+	}
 	});
 }
 

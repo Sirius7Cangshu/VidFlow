@@ -8,9 +8,9 @@
 		"generate-icons": "node generate-icons.js",
 		"test": "node tests/run-tests.js",
 		"lint": "echo 'Linting JavaScript files...'",
-		"package": "echo 'Creating extension package...' && zip -r video-download-helper.zip . -x '*.git*' 'node_modules/*' '*.log' 'package*.json' 'generate-icons.js'",
+		"package": "node scripts/package.js",
 		"dev": "echo 'Development mode - Load unpacked extension in Chrome'",
-		"clean": "rm -f icons/icon*.png && rm -f video-download-helper.zip"
+		"clean": "node scripts/clean.js"
 	},
 	"keywords": [
 		"chrome-extension",

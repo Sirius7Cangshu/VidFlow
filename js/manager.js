@@ -48,11 +48,12 @@ class ManagerPage {
 		this.startAutoRefresh();
 
 		if (preselectSrc) {
+			// URLSearchParams.get() auto-decodes, no need for decodeURIComponent
 			this.preselect = {
-				src: decodeURIComponent(preselectSrc),
-				title: decodeURIComponent(preselectTitle),
-				quality: decodeURIComponent(preselectQuality),
-				master: preselectMaster ? decodeURIComponent(preselectMaster) : ''
+				src: preselectSrc,
+				title: preselectTitle,
+				quality: preselectQuality,
+				master: preselectMaster || ''
 			};
 			await this.refresh();
 		}
@@ -111,6 +112,11 @@ class ManagerPage {
 			if (!this.activeVideo || !this.resolutionSelect) {
 				return;
 			}
+			// Prevent resolution change if cache was cleared
+			const job = this.jobs.get(this.activeVideo.key);
+			if (job && job.cleared) {
+				return;
+			}
 			const nextUrl = this.resolutionSelect.value;
 			if (!nextUrl) {
 				return;
@@ -121,7 +127,6 @@ class ManagerPage {
 
 			this.results.delete(this.activeVideo.key);
 			this.setJobProgress(this.activeVideo.key, 0, '');
-			const job = this.jobs.get(this.activeVideo.key);
 			if (job) {
 				job.lastPct = 0;
 				job.status = 'idle';
@@ -145,10 +150,16 @@ class ManagerPage {
 				savePartialBtn.textContent = '保存当前部分';
 			} else {
 				const job = this.jobs.get(this.activeVideo.key);
-				const hasPartial = Boolean(job && job.hls && job.hls.contiguousCount > 0);
-				const hasFinal = this.results.has(this.activeVideo.key);
-				savePartialBtn.disabled = !(hasPartial || hasFinal);
-				savePartialBtn.textContent = (hasFinal || (job && job.lastPct >= 100)) ? '保存' : '保存当前部分';
+				// Disable if cache was cleared
+				if (job && job.cleared) {
+					savePartialBtn.disabled = true;
+					savePartialBtn.textContent = '已清除';
+				} else {
+					const hasPartial = Boolean(job && job.hls && job.hls.contiguousCount > 0);
+					const hasFinal = this.results.has(this.activeVideo.key);
+					savePartialBtn.disabled = !(hasPartial || hasFinal);
+					savePartialBtn.textContent = (hasFinal || (job && job.lastPct >= 100)) ? '保存' : '保存当前部分';
+				}
 			}
 		}
 		if (copyLinkBtn) {
@@ -645,11 +656,18 @@ class ManagerPage {
 			return;
 		}
 
+		// Check if any job is cleared
+		const anyCleared = Array.from(this.jobs.values()).some(j => j.cleared);
+		const allCleared = this.jobs.size > 0 && Array.from(this.jobs.values()).every(j => j.cleared);
+
 		const hasActive = Boolean(this.recording) || (this.activeJobKey && this.jobs.get(this.activeJobKey)?.status === 'running');
-		pauseBtn.disabled = !hasActive;
-		stopBtn.disabled = !hasActive;
-		pauseBtn.style.opacity = hasActive ? '1' : '0.4';
-		stopBtn.style.opacity = hasActive ? '1' : '0.4';
+		pauseBtn.disabled = !hasActive || allCleared;
+		stopBtn.disabled = !hasActive || allCleared;
+		pauseBtn.style.opacity = (hasActive && !allCleared) ? '1' : '0.4';
+		stopBtn.style.opacity = (hasActive && !allCleared) ? '1' : '0.4';
+		// Disable clear button if already cleared
+		clearBtn.disabled = allCleared;
+		clearBtn.style.opacity = allCleared ? '0.4' : '1';
 
 		const dockKey = this.activeVideo && this.activeVideo.key ? this.activeVideo.key : (this.activeJobKey || '');
 		this.dockControlsTo(dockKey);
@@ -805,21 +823,27 @@ class ManagerPage {
 		this.results.clear();
 		this.recordingResult = null;
 		this.recordingKey = '';
-		// Keep selection, but clear any partial download cache so user cannot "continue".
-		if (this.activeVideo && this.activeVideo.key) {
-			this.activeJobKey = this.activeVideo.key;
-		}
 		this.paused = false;
 
+		// Mark all jobs as cleared (irreversible) and update UI to gray state
 		for (const [key, job] of this.jobs.entries()) {
-			job.status = 'idle';
+			job.status = 'cleared';
+			job.cleared = true;
 			job.controller = null;
 			job.lastPct = 0;
-			job.bar.style.width = '0%';
-			job.pct.textContent = '0%';
-			job.text.textContent = '';
 			job.hls = null;
+			// Gray out the progress bar to indicate cleared state
+			job.bar.style.width = '100%';
+			job.bar.style.background = '#9ca3af';
+			job.pct.textContent = '--';
+			job.pct.style.color = '#9ca3af';
+			job.text.textContent = '已清除';
+			job.text.style.color = '#9ca3af';
 		}
+
+		// Clear active selection since nothing can be downloaded
+		this.activeJobKey = '';
+		this.activeVideo = null;
 		this.updateToolbarState();
 		this.updateTopButtons();
 	}
@@ -920,6 +944,11 @@ class ManagerPage {
 			if (e.target instanceof Element && e.target.closest('button')) {
 				return;
 			}
+			// Prevent selection/download if cache was cleared
+			const job = this.jobs.get(video.key);
+			if (job && job.cleared) {
+				return;
+			}
 			this.activeVideo = video;
 			this.updateResolutionSelect(video);
 			this.updateTopButtons();
@@ -961,7 +990,7 @@ class ManagerPage {
 		row.appendChild(right);
 		container.appendChild(row);
 
-		this.jobs.set(key, { container, controlsSlot: null, bar, pct, text, kind, video: null, hls: null, status: 'idle', lastPct: 0, controller: null });
+		this.jobs.set(key, { container, controlsSlot: null, bar, pct, text, kind, video: null, hls: null, status: 'idle', lastPct: 0, controller: null, cleared: false });
 		return container;
 	}
 
@@ -989,6 +1018,10 @@ class ManagerPage {
 			return;
 		}
 		const job = this.jobs.get(key);
+		// Prevent download if cache was cleared (irreversible)
+		if (job && job.cleared) {
+			return;
+		}
 		if (job && job.status === 'running') {
 			return;
 		}
@@ -1862,7 +1895,7 @@ class ManagerPage {
 	}
 
 	async downloadM3U8AsTS(key, playlistUrl, title, quality) {
-		this.setJobProgress(key, 5, '拉取播放列表…');
+		this.setJobProgress(key, 0, '拉取播放列表…');
 		const signal = this.jobs.get(key)?.controller?.signal;
 		const res = await fetch(playlistUrl, { method: 'GET', credentials: 'include', signal });
 		if (!res.ok) {
@@ -2318,6 +2351,18 @@ class ManagerPage {
 			this.updateToolbarState();
 		}
 		this.updateTopButtons();
+
+		// Auto-save and clear cache 3 seconds after download completes
+		setTimeout(() => {
+			// Auto-save the result
+			if (this.results.has(key)) {
+				this.saveResult(key);
+			}
+			// Then clear all cache (irreversible)
+			setTimeout(() => {
+				this.clearCache();
+			}, 500);
+		}, 3000);
 	}
 
 	saveResult(key) {
