@@ -1,93 +1,129 @@
-// Icon generator for Video Download Helper
-// This script generates PNG icons from canvas for the Chrome extension
-
+const { createCanvas } = require('@napi-rs/canvas');
 const fs = require('fs');
 const path = require('path');
 
-// Create a simple icon using Canvas-like drawing
-function generateIcon(size) {
-	// Create a simple base64 encoded PNG for the icon
-	// This is a minimal 1x1 transparent PNG
-	const transparentPNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-
-	// For a real implementation, you would use a proper canvas or image generation library
-	// This is just a placeholder that creates valid PNG files
-
-	const canvas = {
-		width: size,
-		height: size,
-		getContext: () => ({
-			fillStyle: '',
-			strokeStyle: '',
-			lineWidth: 0,
-			fillRect: () => { },
-			strokeRect: () => { },
-			beginPath: () => { },
-			arc: () => { },
-			fill: () => { },
-			stroke: () => { },
-			moveTo: () => { },
-			lineTo: () => { },
-			closePath: () => { },
-			fillText: () => { },
-			createLinearGradient: () => ({
-				addColorStop: () => { }
-			})
-		}),
-		toDataURL: () => transparentPNG
-	};
-
+function drawIcon(canvas, size) {
 	const ctx = canvas.getContext('2d');
+	ctx.clearRect(0, 0, size, size);
 
-	// Create gradient background
-	const gradient = ctx.createLinearGradient(0, 0, size, size);
-	gradient.addColorStop(0, '#3b82f6');
-	gradient.addColorStop(1, '#8b5cf6');
+	const s = size / 128;
 
-	ctx.fillStyle = gradient;
-	ctx.fillRect(0, 0, size, size);
+	// Background gradient
+	const bgGrad = ctx.createLinearGradient(0, 0, size, size);
+	bgGrad.addColorStop(0, '#667EEA');
+	bgGrad.addColorStop(0.5, '#764BA2');
+	bgGrad.addColorStop(1, '#F093FB');
 
-	// Draw video play icon
-	ctx.fillStyle = 'white';
+	// Rounded rectangle
+	const r = 26 * s;
+	const x = 8 * s, y = 8 * s, w = 112 * s, h = 112 * s;
+	
 	ctx.beginPath();
-	ctx.moveTo(size * 0.35, size * 0.27);
-	ctx.lineTo(size * 0.35, size * 0.73);
-	ctx.lineTo(size * 0.74, size * 0.5);
+	ctx.moveTo(x + r, y);
+	ctx.lineTo(x + w - r, y);
+	ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+	ctx.lineTo(x + w, y + h - r);
+	ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+	ctx.lineTo(x + r, y + h);
+	ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+	ctx.lineTo(x, y + r);
+	ctx.quadraticCurveTo(x, y, x + r, y);
+	ctx.closePath();
+
+	ctx.fillStyle = bgGrad;
+	ctx.fill();
+
+	// Glass shine
+	const shineGrad = ctx.createLinearGradient(0, y, 0, y + h / 2);
+	shineGrad.addColorStop(0, 'rgba(255,255,255,0.35)');
+	shineGrad.addColorStop(0.5, 'rgba(255,255,255,0.1)');
+	shineGrad.addColorStop(1, 'rgba(255,255,255,0)');
+	
+	ctx.beginPath();
+	ctx.moveTo(x + r, y);
+	ctx.lineTo(x + w - r, y);
+	ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+	ctx.lineTo(x + w, y + h / 2);
+	ctx.lineTo(x, y + h / 2);
+	ctx.lineTo(x, y + r);
+	ctx.quadraticCurveTo(x, y, x + r, y);
+	ctx.closePath();
+	ctx.fillStyle = shineGrad;
+	ctx.fill();
+
+	// Play button circle background
+	ctx.beginPath();
+	ctx.arc(64 * s, 52 * s, 28 * s, 0, Math.PI * 2);
+	ctx.fillStyle = 'rgba(255,255,255,0.2)';
+	ctx.fill();
+
+	// Play button circle
+	ctx.beginPath();
+	ctx.arc(64 * s, 52 * s, 24 * s, 0, Math.PI * 2);
+	ctx.fillStyle = 'rgba(255,255,255,0.95)';
+	ctx.fill();
+
+	// Play triangle with gradient
+	const playGrad = ctx.createLinearGradient(58 * s, 40 * s, 76 * s, 64 * s);
+	playGrad.addColorStop(0, '#667EEA');
+	playGrad.addColorStop(0.5, '#764BA2');
+	playGrad.addColorStop(1, '#F093FB');
+	
+	ctx.fillStyle = playGrad;
+	ctx.beginPath();
+	ctx.moveTo(58 * s, 40 * s);
+	ctx.lineTo(58 * s, 64 * s);
+	ctx.lineTo(76 * s, 52 * s);
 	ctx.closePath();
 	ctx.fill();
 
-	// Draw download arrow
-	ctx.strokeStyle = 'white';
-	ctx.lineWidth = 3;
-	ctx.beginPath();
-	ctx.moveTo(size * 0.7, size * 0.2);
-	ctx.lineTo(size * 0.7, size * 0.4);
-	ctx.moveTo(size * 0.65, size * 0.35);
-	ctx.lineTo(size * 0.7, size * 0.4);
-	ctx.lineTo(size * 0.75, size * 0.35);
-	ctx.stroke();
+	// Download elements
+	ctx.fillStyle = 'rgba(255,255,255,0.95)';
 
-	return canvas.toDataURL('image/png');
+	// Arrow stem
+	roundRect(ctx, 60 * s, 84 * s, 8 * s, 16 * s, 2 * s);
+	ctx.fill();
+
+	// Arrow head
+	ctx.beginPath();
+	ctx.moveTo(64 * s, 108 * s);
+	ctx.lineTo(52 * s, 96 * s);
+	ctx.lineTo(56 * s, 92 * s);
+	ctx.lineTo(64 * s, 100 * s);
+	ctx.lineTo(72 * s, 92 * s);
+	ctx.lineTo(76 * s, 96 * s);
+	ctx.closePath();
+	ctx.fill();
+
+	// Base line
+	roundRect(ctx, 48 * s, 104 * s, 32 * s, 4 * s, 2 * s);
+	ctx.fill();
 }
 
-// Generate icons for different sizes
+function roundRect(ctx, x, y, w, h, r) {
+	ctx.beginPath();
+	ctx.moveTo(x + r, y);
+	ctx.lineTo(x + w - r, y);
+	ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+	ctx.lineTo(x + w, y + h - r);
+	ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+	ctx.lineTo(x + r, y + h);
+	ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+	ctx.lineTo(x, y + r);
+	ctx.quadraticCurveTo(x, y, x + r, y);
+	ctx.closePath();
+}
+
 const sizes = [16, 32, 48, 128];
 
 sizes.forEach(size => {
-	const iconData = generateIcon(size);
-	const base64Data = iconData.replace(/^data:image\/png;base64,/, '');
-	const buffer = Buffer.from(base64Data, 'base64');
-
+	const canvas = createCanvas(size, size);
+	drawIcon(canvas, size);
+	
+	const buffer = canvas.toBuffer('image/png');
 	const filename = path.join(__dirname, 'icons', `icon${size}.png`);
-
-	// Ensure icons directory exists
-	const iconsDir = path.dirname(filename);
-	if (!fs.existsSync(iconsDir)) {
-		fs.mkdirSync(iconsDir, { recursive: true });
-	}
-
 	fs.writeFileSync(filename, buffer);
-	console.log(`Generated ${filename}`);
+	console.log(`Generated ${filename} (${buffer.length} bytes)`);
 });
 
-console.log('All icons generated successfully!');
+console.log('All icons generated!');
