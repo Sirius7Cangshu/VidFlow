@@ -27,7 +27,7 @@
 	<div class="max-w-5xl mx-auto px-4 py-6">
 		<div class="vdh-mgr-hero">
 			<div class="vdh-mgr-title">HLS 视频下载器</div>
-			<div class="vdh-mgr-subtitle">用于下载 m3u8 类型的在线视频，并将其以 MP4 格式保存到您的下载目录。</div>
+			<div class="vdh-mgr-subtitle">用于下载 m3u8 类型的在线视频，默认保存为 <strong>MP4</strong>。<strong>CCTV/CNTV</strong> 站点资源当前不支持下载。</div>
 		</div>
 
 		<div class="vdh-mgr-controls">
@@ -55,7 +55,7 @@
 				<div class="mt-6 text-sm text-gray-500 border-t border-gray-200 pt-6">
 					<div class="font-semibold text-gray-700">提示</div>
 					<div class="mt-2">某些视频在播放之前可能无法捕获。如果目标视频不在列表中，请先播放它，或刷新此页面。</div>
-					<div class="mt-2">如果尝试后仍无法捕获资源，可尝试使用“记录模式”强制导出。</div>
+					<div class="mt-2">如果尝试后仍无法捕获资源，可尝试使用"记录模式"强制导出。</div>
 				</div>
 				<div class="mt-6">
 					<button id="recordModeBtn"
@@ -64,18 +64,30 @@
 			</div>
 
 			<div id="list" class="divide-y divide-gray-100"></div>
+
+			<!-- Bottom controls inside the same card -->
+			<div class="vdh-mgr-bottom-inner">
+				<div class="vdh-mgr-bottom-row" style="justify-content: space-between;">
+					<div class="flex items-center gap-3">
+						<button id="pauseBtn" class="vdh-mgr-secondary">暂停</button>
+						<button id="clearCacheBtn"
+							class="vdh-mgr-secondary text-red-500 hover:text-red-600 hover:bg-red-50">清理缓存</button>
 		</div>
 
-		<div class="vdh-mgr-bottom">
-			<div class="vdh-mgr-bottom-row">
+					<div class="flex items-center gap-4">
+						<div class="flex items-center gap-2">
 				<div class="vdh-mgr-bottom-label">并发请求：</div>
 				<div class="vdh-mgr-concurrency">
 					<button class="vdh-mgr-pill" data-concurrency="1">1</button>
 					<button class="vdh-mgr-pill" data-concurrency="2">2</button>
 					<button class="vdh-mgr-pill" data-concurrency="3">3</button>
 				</div>
+						</div>
+						<div class="flex items-center gap-2">
 				<div class="vdh-mgr-bottom-label">错误请求：</div>
 				<div id="errorCount" class="vdh-mgr-bottom-value">0</div>
+						</div>
+					</div>
 			</div>
 			<div class="vdh-mgr-tips">
 				Tips：并发请求越多，下载速度越快。但对于频繁的请求可能会被拒绝，从而导致错误请求。建议在错误较多时降低并发。
@@ -88,7 +100,8 @@
 			<div class="vdh-mgr-doc-inline">
 				<div class="vdh-mgr-doc-title">使用说明</div>
 				<div class="vdh-mgr-doc-text">
-					下载过程中请不要关闭此页面。若视频非常大（例如超过 2.6GB），建议先点击“保存当前部分”将已下载内容保存到本地，避免内存占用过高导致失败。
+						下载过程中请不要关闭此页面。若视频非常大（例如超过 2.6GB），建议先点击"保存当前部分"将已下载内容保存到本地，避免内存占用过高导致失败。
+					</div>
 				</div>
 			</div>
 		</div>
@@ -96,6 +109,7 @@
 
 	<script src="js/utils.js"></script>
 	<script src="js/vendor/mux.min.js"></script>
+	<script src="node_modules/@ffmpeg/ffmpeg/dist/umd/ffmpeg.js"></script>
 	<script src="js/manager.js"></script>
 </body>
 

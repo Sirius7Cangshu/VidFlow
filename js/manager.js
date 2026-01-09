@@ -20,6 +20,12 @@ class ManagerPage {
 		this.pageUrl = '';
 		this.jobs = new Map();
 		this.results = new Map();
+		this.errorCount = 0;
+		this._ffmpeg = null;
+		this._ffmpegLoaded = false;
+		this._ffmpegLoading = null;
+		this._ffmpegLogRing = [];
+		this._ffmpegLogMax = 60;
 		this.init();
 	}
 
@@ -102,7 +108,7 @@ class ManagerPage {
 		}
 
 		if (errorCount) {
-			errorCount.textContent = '0';
+			errorCount.textContent = String(this.errorCount);
 		}
 
 		if (!this.resolutionSelect) {
@@ -171,37 +177,21 @@ class ManagerPage {
 		if (this.controlsEl) {
 			return;
 		}
-		const dock = document.getElementById('controlsDock');
-		if (!dock) {
-			return;
+		this.controlsEl = true; // Mark as initialized
+
+		// Controls are now static in HTML
+		const pauseBtn = document.getElementById('pauseBtn');
+		if (pauseBtn) {
+			pauseBtn.addEventListener('click', () => this.togglePause());
 		}
 
-		const wrap = document.createElement('div');
-		wrap.className = 'vdh-controls-dock';
+		const clearBtn = document.getElementById('clearCacheBtn');
+		if (clearBtn) {
+			clearBtn.addEventListener('click', () => this.clearCache());
+		}
 
-		const pause = document.createElement('button');
-		pause.id = 'pauseBtn';
-		pause.className = 'vdh-task-btn primary';
-		pause.textContent = '暂停';
-		pause.addEventListener('click', () => this.togglePause());
-
-		const stop = document.createElement('button');
-		stop.id = 'stopBtn';
-		stop.className = 'vdh-task-btn danger';
-		stop.textContent = '停止';
-		stop.addEventListener('click', () => this.stopActive());
-
-		const clear = document.createElement('button');
-		clear.id = 'clearCacheBtn';
-		clear.className = 'vdh-task-btn ghost';
-		clear.textContent = '清理缓存';
-		clear.addEventListener('click', () => this.clearCache());
-
-		wrap.appendChild(pause);
-		wrap.appendChild(stop);
-		wrap.appendChild(clear);
-		dock.appendChild(wrap);
-		this.controlsEl = wrap;
+		// Transcode checkbox state is read on-demand, no need to bind complex logic
+		// But we can persist its state if we wanted to (omitted for now to keep it simple default=checked)
 	}
 
 	async loadPrefs() {
@@ -312,6 +302,10 @@ class ManagerPage {
 
 		const videos = resp && resp.success ? (resp.videos || []) : [];
 		const displayVideos = this.normalizeCapturedVideos(videos);
+
+		const __agentDbgKey = `${videos.length}:${displayVideos.length}`;
+		this.__agent_dbg_refresh_key = __agentDbgKey;
+
 		const countEl = document.getElementById('count');
 		if (countEl) {
 			countEl.textContent = String(displayVideos.length);
@@ -334,10 +328,16 @@ class ManagerPage {
 				continue;
 			}
 			const src = String(raw.src);
+			if (this.isBlockedSourceUrl(src)) {
+				continue;
+			}
 			if (!this.isLikelyManagerUrl(src)) {
 				continue;
 			}
-			const kind = this.getKind(src);
+			const kind = this.getKind(src, raw.contentType);
+			if (kind === 'segment' || kind === 'misc') {
+				continue;
+			}
 			const title = this.pageTitle || raw.title || 'Captured Video';
 			const quality = this.normalizeQuality(raw.quality, src);
 			const sizeBytes = raw.sizeBytes && raw.sizeBytes > 0 ? raw.sizeBytes : 0;
@@ -411,7 +411,27 @@ class ManagerPage {
 		return true;
 	}
 
+	isBlockedSourceUrl(url) {
+		try {
+			const host = new URL(String(url || '')).hostname.toLowerCase();
+			if (!host) return false;
+			if (host === 'cctv.com' || host.endsWith('.cctv.com')) return true;
+			if (host === 'cctv.cn' || host.endsWith('.cctv.cn')) return true;
+			if (host === 'cntv.cn' || host.endsWith('.cntv.cn')) return true;
+			return false;
+		} catch (_) {
+			return false;
+		}
+	}
+
 	normalizeQuality(quality, src) {
+		// For m3u8 files with bitrate in filename, always infer from URL first
+		const srcLower = String(src || '').toLowerCase();
+		if (srcLower.includes('.m3u8')) {
+			const inferred = this.inferQualityFromUrl(src);
+			if (inferred) return inferred;
+		}
+
 		const q = typeof quality === 'string' ? quality.trim().toLowerCase() : '';
 		if (q && q !== 'unknown') {
 			if (/^\d+p$/.test(q) || q === '4k') {
@@ -424,14 +444,42 @@ class ManagerPage {
 
 	inferQualityFromUrl(url) {
 		try {
-			const u = new URL(url);
-			const m = u.pathname.match(/\/(\d{3,4})x(\d{3,4})\//);
-			if (m) {
-				const h = Number(m[2]);
+			const u = String(url || '');
+
+			// Pattern 1: Bitrate/Resolution numbers in filename
+			// Matches: /450.m3u8, /1200.m3u8, /video_450.m3u8, /index_1200.m3u8
+			const mNum = u.match(/[/_](\d{3,5})\.m3u8/i);
+			if (mNum) {
+				const num = Number(mNum[1]);
+				// Map bitrate to quality
+				if (num >= 2000) return '1080p';
+				if (num >= 1000) return '720p';
+				if (num >= 600) return '480p';
+				if (num >= 350) return '360p';
+				if (num >= 200) return '240p';
+
+				// Standard resolutions
+				if ([1080, 720, 480, 360, 240].includes(num)) {
+					return `${num}p`;
+				}
+				return `${num}k`;
+			}
+
+			// Pattern 1: /1920x1080/ format
+			const mRes = u.match(/\/(\d{3,4})x(\d{3,4})\//);
+			if (mRes) {
+				const h = Number(mRes[2]);
 				if (Number.isFinite(h) && h > 0) {
 					return `${h}p`;
 				}
 			}
+
+			// Pattern 2: /1080p/ or _1080p. format
+			const mP = u.match(/[/_](\d{3,4})p[/_.\-\?]/i);
+			if (mP) {
+				return `${mP[1]}p`;
+			}
+
 			return '';
 		} catch (error) {
 			return '';
@@ -454,11 +502,33 @@ class ManagerPage {
 		try {
 			const u = new URL(url);
 			const segs = u.pathname.split('/').filter(Boolean);
-			// missav/surrit style: /{id}/playlist.m3u8 or /{id}/{WxH}/video.m3u8
-			if (segs.length >= 2) {
-				return `${u.origin}/${segs[0]}`;
+			if (segs.length === 0) {
+				return u.origin;
 			}
-			return url;
+
+			const last = segs[segs.length - 1] || '';
+			if (!/\.m3u8$/i.test(last)) {
+				return `${u.origin}/${segs.slice(0, Math.max(1, segs.length - 1)).join('/')}`;
+			}
+
+			const dirSegs = segs.slice(0, -1);
+
+			// Remove variant markers from path segments so master and variants merge correctly.
+			// Patterns to remove: bitrate numbers (450, 850, 1200, 2000), "main", resolution (720x1280)
+			const variantPatterns = [
+				/^\d{3,5}$/,           // bitrate: 450, 850, 1200, 2000
+				/^main$/i,             // master playlist marker
+				/^\d{3,4}x\d{3,4}$/i   // resolution: 720x1280
+			];
+
+			const filtered = dirSegs.filter(seg => {
+				for (const pat of variantPatterns) {
+					if (pat.test(seg)) return false;
+				}
+				return true;
+			});
+
+			return `${u.origin}/${filtered.join('/')}`;
 		} catch (error) {
 			return url;
 		}
@@ -650,27 +720,23 @@ class ManagerPage {
 
 	updateToolbarState() {
 		const pauseBtn = document.getElementById('pauseBtn');
-		const stopBtn = document.getElementById('stopBtn');
 		const clearBtn = document.getElementById('clearCacheBtn');
-		if (!pauseBtn || !stopBtn || !clearBtn) {
+		if (!pauseBtn || !clearBtn) {
 			return;
 		}
 
 		// Check if any job is cleared
-		const anyCleared = Array.from(this.jobs.values()).some(j => j.cleared);
 		const allCleared = this.jobs.size > 0 && Array.from(this.jobs.values()).every(j => j.cleared);
 
 		const hasActive = Boolean(this.recording) || (this.activeJobKey && this.jobs.get(this.activeJobKey)?.status === 'running');
 		pauseBtn.disabled = !hasActive || allCleared;
-		stopBtn.disabled = !hasActive || allCleared;
 		pauseBtn.style.opacity = (hasActive && !allCleared) ? '1' : '0.4';
-		stopBtn.style.opacity = (hasActive && !allCleared) ? '1' : '0.4';
 		// Disable clear button if already cleared
 		clearBtn.disabled = allCleared;
 		clearBtn.style.opacity = allCleared ? '0.4' : '1';
 
 		const dockKey = this.activeVideo && this.activeVideo.key ? this.activeVideo.key : (this.activeJobKey || '');
-		this.dockControlsTo(dockKey);
+		// this.dockControlsTo(dockKey); // Removed: controls are static
 
 		if (this.recording && this.recording.recorder && this.recording.recorder.state === 'paused') {
 			pauseBtn.textContent = '继续';
@@ -682,21 +748,6 @@ class ManagerPage {
 		}
 		pauseBtn.textContent = '暂停';
 		this.updateTopButtons();
-	}
-
-	dockControlsTo(key) {
-		if (!this.controlsEl) {
-			return;
-		}
-		const target = key ? this.jobs.get(key)?.controlsSlot : null;
-		const fallback = document.getElementById('controlsDock');
-		if (target && target instanceof Element) {
-			target.appendChild(this.controlsEl);
-			return;
-		}
-		if (fallback) {
-			fallback.appendChild(this.controlsEl);
-		}
 	}
 
 	updateResolutionSelect(video) {
@@ -728,6 +779,14 @@ class ManagerPage {
 
 	escapeAttr(s) {
 		return this.escapeHtml(s).replace(/`/g, '&#96;');
+	}
+
+	incrementErrorCount() {
+		this.errorCount++;
+		const el = document.getElementById('errorCount');
+		if (el) {
+			el.textContent = String(this.errorCount);
+		}
 	}
 
 	togglePause() {
@@ -825,20 +884,42 @@ class ManagerPage {
 		this.recordingKey = '';
 		this.paused = false;
 
-		// Mark all jobs as cleared (irreversible) and update UI to gray state
+		// Notify background to clear storage for this tab
+		if (this.tabId != null) {
+			chrome.runtime.sendMessage({
+				action: 'clearCapturedVideos',
+				tabId: this.tabId
+			}, (response) => {
+				if (chrome.runtime.lastError) {
+					console.warn('Failed to clear background cache:', chrome.runtime.lastError);
+				}
+			});
+		}
+
+		// Mark all jobs as cleared (irreversible) and hide the rows
 		for (const [key, job] of this.jobs.entries()) {
 			job.status = 'cleared';
 			job.cleared = true;
 			job.controller = null;
 			job.lastPct = 0;
 			job.hls = null;
-			// Gray out the progress bar to indicate cleared state
-			job.bar.style.width = '100%';
-			job.bar.style.background = '#9ca3af';
-			job.pct.textContent = '--';
-			job.pct.style.color = '#9ca3af';
-			job.text.textContent = '已清除';
-			job.text.style.color = '#9ca3af';
+			// Hide the entire row to indicate cleared (irreversible)
+			const row = this.findRowByKey(key);
+			if (row) {
+				row.style.display = 'none';
+			}
+		}
+
+		// Update count to 0
+		const countEl = document.getElementById('count');
+		if (countEl) {
+			countEl.textContent = '0';
+		}
+
+		// Show empty state
+		const empty = document.getElementById('empty');
+		if (empty) {
+			empty.classList.remove('hidden');
 		}
 
 		// Clear active selection since nothing can be downloaded
@@ -906,33 +987,14 @@ class ManagerPage {
 		left.appendChild(meta);
 		left.appendChild(url);
 
-		let rightSlot = null;
-
 		const progress = document.createElement('div');
 		progress.className = 'mt-3';
 
 		const progressEl = this.renderProgress(video.key, null, kind);
-		const actions = document.createElement('div');
-		actions.className = 'vdh-row-actions';
-
-		const controlsSlot = document.createElement('div');
-		controlsSlot.className = 'vdh-row-actions-left';
-
-		actions.appendChild(controlsSlot);
-		if (rightSlot) {
-			actions.appendChild(rightSlot);
-		} else {
-			const spacer = document.createElement('div');
-			spacer.className = 'vdh-row-actions-right';
-			actions.appendChild(spacer);
-		}
-
 		progress.appendChild(progressEl);
-		progress.appendChild(actions);
 
 		const job = this.jobs.get(video.key);
 		if (job) {
-			job.controlsSlot = controlsSlot;
 			job.video = video;
 		}
 
@@ -1047,6 +1109,7 @@ class ManagerPage {
 			if (error && error.name === 'AbortError') {
 				this.setJobProgress(key, 0, '已停止');
 			} else {
+				this.incrementErrorCount();
 				this.setJobProgress(key, 0, `失败：${error && error.message ? error.message : String(error)}`);
 			}
 			const j = this.jobs.get(key);
@@ -1085,10 +1148,20 @@ class ManagerPage {
 	}
 
 	getKind(url) {
-		const u = url.toLowerCase();
-		if (u.includes('.m3u8')) return 'm3u8';
-		if (u.includes('.mpd') || u.includes('.m4s')) return 'dash';
-		return 'file';
+		const u = String(url || '').toLowerCase();
+		const ct0 = String(arguments.length > 1 ? arguments[1] : '')
+			.toLowerCase()
+			.split(';')[0]
+			.trim();
+
+		if (u.includes('.m3u8') || ct0.includes('application/vnd.apple.mpegurl') || ct0.includes('application/x-mpegurl')) return 'm3u8';
+		if (u.includes('.mpd') || ct0.includes('application/dash+xml')) return 'dash';
+
+		if (u.includes('.m4s') || u.includes('.ts') || ct0.includes('video/mp2t') || ct0.includes('video/mpegts') || ct0.includes('video/iso.segment')) return 'segment';
+
+		if (ct0.startsWith('video/') || /\.(mp4|webm|mkv|mov|flv|avi)(\?.*)?$/.test(u)) return 'file';
+
+		return 'misc';
 	}
 
 	getTypeLabel(kind) {
@@ -1895,6 +1968,9 @@ class ManagerPage {
 	}
 
 	async downloadM3U8AsTS(key, playlistUrl, title, quality) {
+		if (this.isBlockedSourceUrl(playlistUrl)) {
+			throw new Error('该站点暂不支持下载（CCTV/CNTV）');
+		}
 		this.setJobProgress(key, 0, '拉取播放列表…');
 		const signal = this.jobs.get(key)?.controller?.signal;
 		const res = await fetch(playlistUrl, { method: 'GET', credentials: 'include', signal });
@@ -1906,6 +1982,11 @@ class ManagerPage {
 		if (/#EXT-X-KEY/i.test(text)) {
 			throw new Error('不支持加密 HLS');
 		}
+		if (/#EXT-X-BYTERANGE/i.test(text)) {
+			throw new Error('暂不支持 BYTERANGE HLS');
+		}
+
+		const masterVariants = this.parseHlsMasterVariants(playlistUrl, text);
 
 		const picked = this.pickVariant(playlistUrl, text);
 		if (picked !== playlistUrl) {
@@ -1921,7 +2002,7 @@ class ManagerPage {
 
 		this.setJobProgress(key, 0, '下载分片…');
 
-		const concurrency = 6;
+		const concurrency = Math.max(1, Math.min(6, this.prefs.concurrency * 2));
 		const results = new Array(segments.length);
 		let completed = 0;
 		const job = this.jobs.get(key);
@@ -1951,11 +2032,50 @@ class ManagerPage {
 			for (let i = start; i < segments.length; i += concurrency) {
 				await this.waitIfPaused();
 				const segUrl = segments[i].url;
-				const r = await fetch(segUrl, { method: 'GET', credentials: 'include', signal });
+				let r;
+				try {
+					r = await fetch(segUrl, { method: 'GET', credentials: 'include', signal });
+				} catch (fetchErr) {
+					this.incrementErrorCount();
+					throw fetchErr;
+				}
 				if (!r.ok) {
+					this.incrementErrorCount();
 					throw new Error(`Segment HTTP ${r.status}`);
 				}
-				results[i] = new Uint8Array(await r.arrayBuffer());
+				const ct = (r.headers.get('content-type') || '').toLowerCase();
+				const bytes = new Uint8Array(await r.arrayBuffer());
+				if (!bytes.byteLength) {
+					this.incrementErrorCount();
+					throw new Error('Segment is empty');
+				}
+				if (ct.includes('text/html') || ct.includes('application/json')) {
+					this.incrementErrorCount();
+					throw new Error(`Segment content-type ${ct || 'unknown'}`);
+				}
+				// Guard against fetching a nested playlist/HTML due to redirects/auth/rate-limit.
+				const b0 = bytes[0];
+				if (b0 === 0x23) { // '#'
+					this.incrementErrorCount();
+					throw new Error('Segment returned m3u8 text');
+				}
+				if (b0 === 0x3c) { // '<'
+					this.incrementErrorCount();
+					throw new Error('Segment returned HTML');
+				}
+				let segBytes = bytes;
+				if (!mapUrl) {
+					const p = this.probeTsVideoCodec(bytes);
+					if (!p || !p.syncOk) {
+						this.incrementErrorCount();
+						throw new Error('Segment is not TS');
+					}
+					// Some streams prepend non-TS bytes (e.g. ID3). Trim to first sync byte.
+					if (p.syncOffset && p.syncOffset > 0) {
+						segBytes = bytes.subarray(p.syncOffset);
+					}
+				}
+				results[i] = segBytes;
 				if (job && job.hls) {
 					job.hls.downloaded[i] = results[i];
 					let c = 0;
@@ -1980,11 +2100,16 @@ class ManagerPage {
 		}
 		await Promise.all(workers);
 
-		// Prefer producing MP4 output:
-		// - If playlist uses fMP4 with EXT-X-MAP, we can stitch init + fragments directly.
-		// - Otherwise (most TS-based HLS), transmux TS -> fMP4 (no re-encode) via mux.js.
+		// Produce output:
+		// - If playlist uses fMP4 with EXT-X-MAP, stitch init + fragments directly as MP4.
+		// - Otherwise (TS-based HLS), remux TS into MP4 via ffmpeg.wasm.
+		let isHevc = false;
+		let transmuxErrMsg = '';
+		let __agentEngine = '';
 		if (mapUrl) {
-			this.setJobProgress(key, 98, '合并为 MP4…');
+			// fMP4/CMAF HLS: init segment + fragments are already MP4, just concatenate
+			__agentEngine = 'fmp4-concat';
+			this.setJobProgress(key, 98, '合并 MP4 分片…');
 			const initSeg = (job && job.hls && job.hls.initSeg) ? job.hls.initSeg : null;
 			if (!initSeg) {
 				throw new Error('Missing init segment');
@@ -1993,10 +2118,55 @@ class ManagerPage {
 			const blob = new Blob([patchedInit, ...results], { type: 'video/mp4' });
 			this.results.set(key, { blob, filename: this.buildFilename(title, quality, 'mp4') });
 		} else {
+			// TS-based HLS: remux/transcode to MP4 via ffmpeg.wasm
+			__agentEngine = 'ffmpeg-remux';
+
+			const tsProbe = this.probeTsVideoCodecFromSegments(results);
+			const tsCodec = tsProbe && tsProbe.videoCodec ? String(tsProbe.videoCodec) : 'unknown';
+
+			if (!tsProbe.syncOk) {
+				throw new Error('分片不是 TS（无法封装为 MP4）');
+			}
+
+			if (tsCodec === 'hevc') {
+				isHevc = true;
+			} else if (tsCodec === 'unknown') {
+				try {
+					const checkCount = Math.min(results.length, 5);
+					for (let i = 0; i < checkCount; i++) {
+						if (results[i] && this.containsHevc(results[i])) {
+							isHevc = true;
+							break;
+						}
+					}
+				} catch (e) {
+					console.warn('HEVC check failed:', e);
+				}
+			}
+
 			this.setJobProgress(key, 98, '封装为 MP4…');
-			const mp4Parts = this.transmuxTsToMp4(results, durationSec);
-			const blob = new Blob(mp4Parts, { type: 'video/mp4' });
-			this.results.set(key, { blob, filename: this.buildFilename(title, quality, 'mp4') });
+			let mp4Bytes = null;
+			try {
+				const sig = this.jobs.get(key)?.controller?.signal;
+				mp4Bytes = await this.remuxTsSegmentsToMp4ByFfmpeg(key, results, durationSec, sig);
+			} catch (rmErr) {
+				transmuxErrMsg = rmErr && rmErr.message ? rmErr.message : String(rmErr);
+				console.warn('ffmpeg remux failed:', rmErr);
+			}
+
+			if (mp4Bytes && mp4Bytes.byteLength > 0) {
+				const blob = new Blob([mp4Bytes], { type: 'video/mp4' });
+				this.results.set(key, { blob, filename: this.buildFilename(title, quality, 'mp4') });
+			} else {
+				const switched = await this.tryFallbackToPlayableMp4Variant(key, playlistUrl, title, quality, isHevc ? 'hevc' : 'ffmpeg_failed');
+				if (switched) {
+					return;
+				}
+				if (isHevc) {
+					throw new Error('HEVC(H.265) 转码失败，请选择其他清晰度');
+				}
+				throw new Error('无法封装为 MP4');
+			}
 		}
 
 		this.setJobProgress(key, 100, '处理完成，可点击“保存”');
@@ -2048,6 +2218,37 @@ class ManagerPage {
 		return variants[0].url;
 	}
 
+	parseHlsMasterVariants(baseUrl, content) {
+		if (!/#EXT-X-STREAM-INF/i.test(content)) {
+			return [];
+		}
+
+		const lines = String(content || '').split('\n').map(l => l.trim()).filter(Boolean);
+		const variants = [];
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			if (!line.startsWith('#EXT-X-STREAM-INF:')) continue;
+
+			const next = lines[i + 1] || '';
+			if (!next || next.startsWith('#')) continue;
+
+			const bwMatch = line.match(/BANDWIDTH=(\d+)/i);
+			const bw = bwMatch ? Number(bwMatch[1]) : 0;
+			const codecsMatch = line.match(/CODECS="([^"]+)"/i);
+			const codecs = (codecsMatch && codecsMatch[1]) ? codecsMatch[1] : '';
+			const resMatch = line.match(/RESOLUTION=(\d+x\d+)/i);
+			const resolution = (resMatch && resMatch[1]) ? resMatch[1] : '';
+			let url;
+			try {
+				url = new URL(next, baseUrl).href;
+			} catch (_) {
+				url = next;
+			}
+			variants.push({ url, bw, codecs, resolution });
+		}
+		return variants;
+	}
+
 	parseSegments(content, baseUrl) {
 		const lines = String(content || '').split('\n').map(l => l.trim());
 		const segs = [];
@@ -2088,48 +2289,479 @@ class ManagerPage {
 			throw new Error('缺少 transmux 组件：mux.js 未加载');
 		}
 
-		// Rebase PTS/DTS onto a continuous timeline starting at 0.
-		// Keeping original timestamps can produce extremely long durations when the source
-		// stream has discontinuities or large initial PTS values.
+		// Check first segment for H.265/HEVC (mux.js only supports H.264)
+		if (tsSegments.length > 0 && tsSegments[0]) {
+			if (this.containsHevc(tsSegments[0])) {
+				throw new Error('H.265/HEVC 编码不支持 mux.js 转封装');
+			}
+		}
+
 		const transmuxer = new mux.mp4.Transmuxer({ keepOriginalTimestamps: false });
 		const parts = [];
 		let initAdded = false;
+		let encounteredError = null;
+		let dataEvents = 0;
 
 		transmuxer.on('data', (segment) => {
-			if (!segment) {
-				return;
-			}
+			dataEvents++;
+			if (!segment) return;
 			if (!initAdded && segment.initSegment && segment.initSegment.byteLength) {
-				parts.push(segment.initSegment);
+				parts.push(new Uint8Array(segment.initSegment));
 				initAdded = true;
 			}
 			if (segment.data && segment.data.byteLength) {
-				parts.push(segment.data);
+				parts.push(new Uint8Array(segment.data));
 			}
 		});
 
-		for (const seg of tsSegments) {
-			if (!seg || !seg.byteLength) {
-				continue;
-			}
-			transmuxer.push(seg);
-		}
-		transmuxer.flush();
+		transmuxer.on('done', () => { /* transmux complete */ });
 
-		if (!initAdded) {
+		for (const seg of tsSegments) {
+			if (!seg || !seg.byteLength) continue;
+			try {
+				transmuxer.push(seg);
+				// mux.js best-practice: flush after each segment to produce stable fMP4 fragments.
+				transmuxer.flush();
+			} catch (pushErr) {
+				encounteredError = pushErr;
+				break;
+			}
+		}
+
+		if (encounteredError) {
+			try { transmuxer.dispose(); } catch (_) { /* ignore */ }
+			throw encounteredError;
+		}
+
+		if (!initAdded || parts.length === 0) {
+			try { transmuxer.dispose(); } catch (_) { /* ignore */ }
 			throw new Error('无法封装为 MP4（缺少 init segment）');
 		}
 
-		try {
-			transmuxer.dispose();
-		} catch (error) {
-			// Ignore
-		}
+		try { transmuxer.dispose(); } catch (_) { /* ignore */ }
 
 		if (durationSec > 0 && parts.length > 0) {
 			parts[0] = this.patchMp4InitDuration(parts[0], durationSec);
 		}
 		return parts;
+	}
+
+	async ensureFfmpegLoaded(signal) {
+		if (this._ffmpegLoaded && this._ffmpeg) {
+			return this._ffmpeg;
+		}
+		if (this._ffmpegLoading) {
+			return this._ffmpegLoading;
+		}
+
+		const mod = globalThis.FFmpegWASM;
+		if (!mod || !mod.FFmpeg) {
+			throw new Error('缺少封装组件：ffmpeg.wasm 未加载');
+		}
+
+		const ffmpeg = new mod.FFmpeg();
+		this._ffmpeg = ffmpeg;
+		this._ffmpegLoading = (async () => {
+			ffmpeg.on('log', (e) => {
+				const msg = e && e.message ? String(e.message) : '';
+				if (!msg) {
+					return;
+				}
+				this._ffmpegLogRing.push(msg);
+				if (this._ffmpegLogRing.length > this._ffmpegLogMax) {
+					this._ffmpegLogRing.splice(0, this._ffmpegLogRing.length - this._ffmpegLogMax);
+				}
+			});
+			ffmpeg.on('progress', (p) => {
+				const ratio = p && typeof p.ratio === 'number' ? p.ratio : 0;
+				const pct = Math.max(0, Math.min(99, Math.floor(ratio * 100)));
+				if (this.activeJobKey) {
+					this.setJobProgress(this.activeJobKey, pct, '封装为 MP4…');
+				}
+			});
+			const coreURL = chrome.runtime.getURL('node_modules/@ffmpeg/core/dist/umd/ffmpeg-core.js');
+			const wasmURL = chrome.runtime.getURL('node_modules/@ffmpeg/core/dist/umd/ffmpeg-core.wasm');
+			await ffmpeg.load({ coreURL, wasmURL }, { signal });
+			this._ffmpegLoaded = true;
+			this._ffmpegLoading = null;
+			return ffmpeg;
+		})();
+		return this._ffmpegLoading;
+	}
+
+	async remuxTsSegmentsToMp4ByFfmpeg(key, tsSegments, durationSec, signal) {
+		const ffmpeg = await this.ensureFfmpegLoaded(signal);
+		const list = Array.isArray(tsSegments) ? tsSegments : [];
+		let total = 0;
+		for (const p of list) {
+			if (p && p.byteLength) {
+				total += p.byteLength;
+			}
+		}
+		if (total === 0) {
+			throw new Error('分片为空（无法封装为 MP4）');
+		}
+
+		const tsBytes = this.concatUint8(list);
+		const inName = `in_${Date.now()}.ts`;
+		const outName = `out_${Date.now()}.mp4`;
+
+		await ffmpeg.writeFile(inName, tsBytes, { signal });
+
+		if (this.activeJobKey === key) {
+			this.setJobProgress(key, 99, '正在转码修复花屏（较慢）…');
+		}
+
+		// First try: remux only (copy streams without re-encoding for speed)
+		this._ffmpegLogRing = [];
+		let exitCode = -1;
+		try {
+			exitCode = await ffmpeg.exec(
+				['-fflags', '+genpts+igndts', '-i', inName, '-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy', '-bsf:a', 'aac_adtstoasc', '-movflags', '+faststart', outName],
+				-1,
+				{ signal }
+			);
+		} catch (_) {
+			exitCode = -1;
+		}
+
+		let out = null;
+		if (exitCode === 0) {
+			try {
+				out = await ffmpeg.readFile(outName, 'binary', { signal });
+			} catch (_) {
+				out = null;
+			}
+		}
+
+		// Validate output: must be > 1KB and start with ftyp/moov
+		const isValidMp4 = (bytes) => {
+			if (!bytes || bytes.byteLength < 1024) return false;
+			const tag = String.fromCharCode(bytes[4], bytes[5], bytes[6], bytes[7]);
+			return tag === 'ftyp' || tag === 'moov';
+		};
+
+		if (!isValidMp4(out)) {
+			console.log('[VDH] remux failed or invalid, falling back to transcode');
+			// Fallback: full transcode with stable settings
+			try { await ffmpeg.deleteFile(outName, { signal }); } catch (_) { /* ignore */ }
+			this._ffmpegLogRing = [];
+			await ffmpeg.exec(
+				['-fflags', '+genpts+igndts', '-i', inName, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-pix_fmt', 'yuv420p', '-vsync', 'vfr', '-c:a', 'aac', '-b:a', '128k', '-async', '1', '-movflags', '+faststart', '-max_muxing_queue_size', '1024', outName],
+				-1,
+				{ signal }
+			);
+			out = await ffmpeg.readFile(outName, 'binary', { signal });
+		}
+
+		console.log('[VDH] ffmpeg done, outSize:', out ? out.byteLength : 0, 'logs:', this._ffmpegLogRing.slice(-10));
+
+		await ffmpeg.deleteFile(inName, { signal });
+		try { await ffmpeg.deleteFile(outName, { signal }); } catch (_) { /* ignore */ }
+
+		return out instanceof Uint8Array ? out : new Uint8Array(out || []);
+	}
+
+	async transcodeFmp4FragmentsToMp4ByFfmpeg(key, initSeg, fragments, signal) {
+		const ffmpeg = await this.ensureFfmpegLoaded(signal);
+		const list = Array.isArray(fragments) ? fragments : [];
+		const inBytes = this.concatUint8([initSeg, ...list]);
+		if (!inBytes.byteLength) {
+			throw new Error('分片为空（无法封装为 MP4）');
+		}
+
+		const inName = `in_${Date.now()}.mp4`;
+		const outName = `out_${Date.now()}.mp4`;
+
+		await ffmpeg.writeFile(inName, inBytes, { signal });
+
+		if (this.activeJobKey === key) {
+			this.setJobProgress(key, 99, '正在转码修复花屏（较慢）…');
+		}
+
+		// First try: remux only (copy streams)
+		this._ffmpegLogRing = [];
+		let exitCode = -1;
+		try {
+			exitCode = await ffmpeg.exec(
+				['-fflags', '+genpts+igndts', '-i', inName, '-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy', '-movflags', '+faststart', outName],
+				-1,
+				{ signal }
+			);
+		} catch (_) {
+			exitCode = -1;
+		}
+
+		let out = null;
+		if (exitCode === 0) {
+			try {
+				out = await ffmpeg.readFile(outName, 'binary', { signal });
+			} catch (_) {
+				out = null;
+			}
+		}
+
+		const isValidMp4 = (bytes) => {
+			if (!bytes || bytes.byteLength < 1024) return false;
+			const tag = String.fromCharCode(bytes[4], bytes[5], bytes[6], bytes[7]);
+			return tag === 'ftyp' || tag === 'moov';
+		};
+
+		if (!isValidMp4(out)) {
+			console.log('[VDH] fmp4 remux failed or invalid, falling back to transcode');
+			try { await ffmpeg.deleteFile(outName, { signal }); } catch (_) { /* ignore */ }
+			this._ffmpegLogRing = [];
+			await ffmpeg.exec(
+				['-fflags', '+genpts+igndts', '-i', inName, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-pix_fmt', 'yuv420p', '-vsync', 'vfr', '-c:a', 'aac', '-b:a', '128k', '-async', '1', '-movflags', '+faststart', '-max_muxing_queue_size', '1024', outName],
+				-1,
+				{ signal }
+			);
+			out = await ffmpeg.readFile(outName, 'binary', { signal });
+		}
+
+		console.log('[VDH] fmp4 ffmpeg done, outSize:', out ? out.byteLength : 0, 'logs:', this._ffmpegLogRing.slice(-10));
+
+		await ffmpeg.deleteFile(inName, { signal });
+		try { await ffmpeg.deleteFile(outName, { signal }); } catch (_) { /* ignore */ }
+
+		return out instanceof Uint8Array ? out : new Uint8Array(out || []);
+	}
+
+	containsHevc(tsSegment) {
+		// Simple HEVC detection: look for NAL unit type 32-34 (VPS/SPS/PPS for HEVC)
+		// or PES stream type 0x24 (HEVC video)
+		const bytes = tsSegment instanceof Uint8Array ? tsSegment : new Uint8Array(tsSegment);
+		const len = Math.min(bytes.length, 4096);
+		for (let i = 0; i < len - 4; i++) {
+			// NAL start code 0x000001 or 0x00000001
+			if (bytes[i] === 0 && bytes[i + 1] === 0 && bytes[i + 2] === 1) {
+				const nalType = (bytes[i + 3] >> 1) & 0x3f;
+				if (nalType >= 32 && nalType <= 34) return true;
+			}
+			if (bytes[i] === 0 && bytes[i + 1] === 0 && bytes[i + 2] === 0 && bytes[i + 3] === 1) {
+				const nalType = (bytes[i + 4] >> 1) & 0x3f;
+				if (nalType >= 32 && nalType <= 34) return true;
+			}
+		}
+		return false;
+	}
+
+	probeTsVideoCodec(tsSegment) {
+		const bytes = tsSegment instanceof Uint8Array ? tsSegment : new Uint8Array(tsSegment);
+		const packetSize = 188;
+
+		const findSyncOffset = () => {
+			const max = Math.min(packetSize, Math.max(0, bytes.byteLength - packetSize * 3));
+			for (let o = 0; o < max; o++) {
+				if (bytes[o] === 0x47 && bytes[o + packetSize] === 0x47 && bytes[o + packetSize * 2] === 0x47) {
+					return o;
+				}
+			}
+			return -1;
+		};
+
+		const parsePat = (section) => {
+			if (!section || section.length < 12) return null;
+			if (section[0] !== 0x00) return null;
+			const sectionLen = ((section[1] & 0x0f) << 8) | section[2];
+			const end = 3 + sectionLen;
+			if (end > section.length) return null;
+			let i = 8;
+			const stop = end - 4;
+			while (i + 4 <= stop) {
+				const programNum = (section[i] << 8) | section[i + 1];
+				const pid = ((section[i + 2] & 0x1f) << 8) | section[i + 3];
+				if (programNum !== 0) {
+					return pid;
+				}
+				i += 4;
+			}
+			return null;
+		};
+
+		const parsePmt = (section) => {
+			const streamTypes = [];
+			let videoCodec = 'unknown';
+			if (!section || section.length < 16) return { streamTypes, videoCodec };
+			if (section[0] !== 0x02) return { streamTypes, videoCodec };
+			const sectionLen = ((section[1] & 0x0f) << 8) | section[2];
+			const end = 3 + sectionLen;
+			if (end > section.length) return { streamTypes, videoCodec };
+			const stop = end - 4;
+			const programInfoLen = ((section[10] & 0x0f) << 8) | section[11];
+			let i = 12 + programInfoLen;
+			while (i + 5 <= stop) {
+				const st = section[i];
+				streamTypes.push(st);
+				if (st === 0x24) videoCodec = 'hevc';
+				if (st === 0x1b && videoCodec !== 'hevc') videoCodec = 'avc';
+				const esInfoLen = ((section[i + 3] & 0x0f) << 8) | section[i + 4];
+				i += 5 + esInfoLen;
+			}
+			return { streamTypes, videoCodec };
+		};
+
+		const syncOffset = findSyncOffset();
+		if (syncOffset < 0) {
+			return { syncOk: false, syncOffset: -1, pmtPid: null, streamTypes: [], videoCodec: 'unknown' };
+		}
+
+		let pmtPid = null;
+		let patBuf = [];
+		let patNeed = 0;
+		let pmtBuf = [];
+		let pmtNeed = 0;
+
+		const maxPackets = Math.min(2000, Math.floor((bytes.byteLength - syncOffset) / packetSize));
+		for (let pi = 0; pi < maxPackets; pi++) {
+			const off = syncOffset + pi * packetSize;
+			if (bytes[off] !== 0x47) {
+				continue;
+			}
+
+			const payloadStart = (bytes[off + 1] & 0x40) !== 0;
+			const pid = ((bytes[off + 1] & 0x1f) << 8) | bytes[off + 2];
+			const afc = (bytes[off + 3] & 0x30) >> 4;
+
+			let p = off + 4;
+			if (afc === 2 || afc === 0) {
+				continue;
+			}
+			if (afc === 3) {
+				const afl = bytes[p];
+				p += 1 + afl;
+			}
+			if (p >= off + packetSize) {
+				continue;
+			}
+
+			const appendSection = (buf, need, startAt) => {
+				let s = startAt;
+				if (payloadStart) {
+					const pointer = bytes[s];
+					s = s + 1 + pointer;
+					buf.length = 0;
+					need = 0;
+				}
+				if (s < off + packetSize) {
+					for (let i = s; i < off + packetSize; i++) {
+						buf.push(bytes[i]);
+					}
+				}
+				if (need === 0 && buf.length >= 3) {
+					const sectionLen = ((buf[1] & 0x0f) << 8) | buf[2];
+					need = 3 + sectionLen;
+				}
+				return { buf, need };
+			};
+
+			if (pid === 0) {
+				const next = appendSection(patBuf, patNeed, p);
+				patBuf = next.buf;
+				patNeed = next.need;
+				if (patNeed > 0 && patBuf.length >= patNeed) {
+					const section = Uint8Array.from(patBuf.slice(0, patNeed));
+					pmtPid = parsePat(section);
+					patBuf = [];
+					patNeed = 0;
+				}
+				continue;
+			}
+
+			if (pmtPid != null && pid === pmtPid) {
+				const next = appendSection(pmtBuf, pmtNeed, p);
+				pmtBuf = next.buf;
+				pmtNeed = next.need;
+				if (pmtNeed > 0 && pmtBuf.length >= pmtNeed) {
+					const section = Uint8Array.from(pmtBuf.slice(0, pmtNeed));
+					const parsed = parsePmt(section);
+					return { syncOk: true, syncOffset, pmtPid, streamTypes: parsed.streamTypes, videoCodec: parsed.videoCodec };
+				}
+			}
+		}
+
+		return { syncOk: true, syncOffset, pmtPid, streamTypes: [], videoCodec: 'unknown' };
+	}
+
+	probeTsVideoCodecFromSegments(tsSegments) {
+		const maxSegs = Math.min(4, Array.isArray(tsSegments) ? tsSegments.length : 0);
+		for (let i = 0; i < maxSegs; i++) {
+			const seg = tsSegments[i];
+			if (!seg || !seg.byteLength) continue;
+			const info = this.probeTsVideoCodec(seg);
+			if (!info.syncOk) {
+				return Object.assign({ segIndex: i }, info);
+			}
+			if (info.videoCodec && info.videoCodec !== 'unknown') {
+				return Object.assign({ segIndex: i }, info);
+			}
+		}
+		return { segIndex: -1, syncOk: true, syncOffset: -1, pmtPid: null, streamTypes: [], videoCodec: 'unknown' };
+	}
+
+	async probeHlsVariantVideoCodec(playlistUrl, signal) {
+		const res = await fetch(playlistUrl, { method: 'GET', credentials: 'include', signal });
+		if (!res.ok) {
+			return { ok: false, error: `HTTP ${res.status}`, videoCodec: 'unknown', syncOk: true };
+		}
+		const text = await res.text();
+		if (/#EXT-X-KEY/i.test(text)) {
+			return { ok: false, error: 'encrypted', videoCodec: 'unknown', syncOk: true };
+		}
+		const picked = this.pickVariant(playlistUrl, text);
+		if (picked !== playlistUrl) {
+			return this.probeHlsVariantVideoCodec(picked, signal);
+		}
+		const segments = this.parseSegments(text, playlistUrl);
+		if (!segments.length) {
+			return { ok: false, error: 'no segments', videoCodec: 'unknown', syncOk: true };
+		}
+		const segRes = await fetch(segments[0].url, { method: 'GET', credentials: 'include', signal });
+		if (!segRes.ok) {
+			return { ok: false, error: `seg HTTP ${segRes.status}`, videoCodec: 'unknown', syncOk: true };
+		}
+		const seg0 = new Uint8Array(await segRes.arrayBuffer());
+		const info = this.probeTsVideoCodec(seg0);
+		return { ok: true, error: '', videoCodec: info.videoCodec, syncOk: info.syncOk };
+	}
+
+	async tryFallbackToPlayableMp4Variant(key, fromUrl, title, fromQuality, reason) {
+		const job = this.jobs.get(key);
+		const video = job && job.video ? job.video : null;
+		const variants = video && Array.isArray(video.variants) ? video.variants : [];
+		if (variants.length === 0) {
+			return false;
+		}
+
+		const signal = job && job.controller ? job.controller.signal : undefined;
+		const candidates = variants
+			.filter(v => v && v.url && v.url !== fromUrl)
+			.slice()
+			.sort((a, b) => this.compareQuality(b.label || '', a.label || ''));
+
+		const probeSummary = [];
+		for (const c of candidates) {
+			const url = String(c.url || '');
+			let probe;
+			try {
+				probe = await this.probeHlsVariantVideoCodec(url, signal);
+			} catch (e) {
+				probe = { ok: false, error: String(e && e.message ? e.message : e), videoCodec: 'unknown', syncOk: true };
+			}
+			probeSummary.push({ label: c.label || '', urlTail: url.split('/').pop().split('?')[0], ok: !!probe.ok, codec: probe.videoCodec || 'unknown', syncOk: !!probe.syncOk });
+			if (probe && probe.syncOk && probe.videoCodec === 'avc') {
+				const toQuality = c.label || fromQuality;
+				if (video) {
+					video.selectedUrl = url;
+					video.selectedQuality = toQuality;
+				}
+				this.setJobProgress(key, 1, `检测到不兼容编码，切换到 ${toQuality}…`);
+				await this.downloadM3U8AsTS(key, url, title, toQuality);
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	sumHlsDurationSeconds(content) {
@@ -2346,6 +2978,7 @@ class ManagerPage {
 		if (job) {
 			job.status = 'idle';
 			job.controller = null;
+			job.autoSaveScheduled = true;
 		}
 		if (this.activeJobKey === key) {
 			this.updateToolbarState();
@@ -2354,14 +2987,16 @@ class ManagerPage {
 
 		// Auto-save and clear cache 3 seconds after download completes
 		setTimeout(() => {
-			// Auto-save the result
-			if (this.results.has(key)) {
+			// Only auto-save if not already saved manually
+			const currentJob = this.jobs.get(key);
+			if (currentJob && currentJob.autoSaveScheduled && this.results.has(key)) {
+				currentJob.autoSaveScheduled = false;
 				this.saveResult(key);
+				// Then clear all cache (irreversible)
+				setTimeout(() => {
+					this.clearCache();
+				}, 500);
 			}
-			// Then clear all cache (irreversible)
-			setTimeout(() => {
-				this.clearCache();
-			}, 500);
 		}, 3000);
 	}
 
@@ -2370,20 +3005,29 @@ class ManagerPage {
 		if (!r) {
 			return;
 		}
+		// Mark as manually saved to prevent duplicate auto-save
+		const job = this.jobs.get(key);
+		if (job) {
+			job.autoSaveScheduled = false;
+		}
 		this.downloadViaBrowser(r.blob, r.filename);
 	}
 
-	saveCurrentPart(video) {
+	async saveCurrentPart(video) {
 		if (!video || !video.key) {
 			return;
 		}
 		const key = video.key;
+		// Mark as manually saved to prevent duplicate auto-save
+		const job = this.jobs.get(key);
+		if (job) {
+			job.autoSaveScheduled = false;
+		}
 		if (this.results.has(key)) {
 			this.saveResult(key);
 			return;
 		}
 
-		const job = this.jobs.get(key);
 		if (!job || !job.hls || !job.hls.downloaded || !job.hls.segments) {
 			return;
 		}
@@ -2415,9 +3059,24 @@ class ManagerPage {
 			return;
 		}
 
+		// Export the partial download as a playable MP4.
 		const tsSegs = job.hls.downloaded.slice(0, count).filter(Boolean);
-		const mp4Parts = this.transmuxTsToMp4(tsSegs, dur);
-		const blob = new Blob(mp4Parts, { type: 'video/mp4' });
+		if (tsSegs.length === 0) {
+			return;
+		}
+		let mp4Bytes;
+		try {
+			const partKey = `${key}::part::${Date.now()}`;
+			const sig = job && job.controller ? job.controller.signal : undefined;
+			mp4Bytes = await this.remuxTsSegmentsToMp4ByFfmpeg(partKey, tsSegs, dur, sig);
+		} catch (e) {
+			console.warn('saveCurrentPart remux failed:', e);
+			return;
+		}
+		if (!mp4Bytes || !mp4Bytes.byteLength) {
+			return;
+		}
+		const blob = new Blob([mp4Bytes], { type: 'video/mp4' });
 		this.downloadViaBrowser(blob, this.buildFilename(partTitle, q, 'mp4'));
 	}
 

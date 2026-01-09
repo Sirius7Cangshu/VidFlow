@@ -30,8 +30,8 @@
 	},
 	"homepage": "https://github.com/example/video-download-helper#readme",
 	"devDependencies": {
-		"web-ext": "^7.0.0",
-		"eslint": "^8.0.0"
+		"eslint": "^8.0.0",
+		"web-ext": "^7.0.0"
 	},
 	"engines": {
 		"node": ">=14.0.0"
@@ -53,5 +53,9 @@
 			"Chrome",
 			"Edge (Chromium)"
 		]
+	},
+	"dependencies": {
+		"@ffmpeg/core": "^0.12.6",
+		"@ffmpeg/ffmpeg": "^0.12.10"
 	}
 }

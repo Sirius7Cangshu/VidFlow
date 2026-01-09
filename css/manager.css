@@ -129,6 +129,7 @@ body {
 	font-size: 14px;
 	font-weight: 900;
 	color: #0f172a;
+	cursor: pointer;
 	transition: opacity 150ms ease, transform 150ms ease, background 150ms ease;
 }
 
@@ -169,6 +170,7 @@ body {
 	border: 1px solid rgba(15, 23, 42, 0.16);
 	background: #fff;
 	color: rgba(15, 23, 42, 0.82);
+	cursor: pointer;
 	transition: background 150ms ease, opacity 150ms ease, transform 150ms ease;
 	user-select: none;
 }
@@ -204,34 +206,7 @@ body {
 	background: #fff;
 }
 
-.vdh-row-actions {
-	width: 100%;
-	max-width: 48rem;
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	gap: 12px;
-	margin-top: 10px;
-}
-
-.vdh-row-actions-left {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	flex-wrap: wrap;
-}
-
-.vdh-row-actions-left .vdh-controls-dock {
-	justify-content: flex-start;
-}
-
-.vdh-row-actions-right {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	flex-wrap: wrap;
-	justify-content: flex-end;
-}
+/* Row actions - kept for potential future use */
 
 .vdh-progress-row {
 	width: 100%;
@@ -286,6 +261,17 @@ body {
 	border-radius: 16px;
 }
 
+.vdh-mgr-bottom-inner {
+	padding: 16px 16px 14px;
+	border-top: 1px solid rgba(15, 23, 42, 0.1);
+	background: linear-gradient(to bottom, rgba(249, 250, 251, 0.6), rgba(255, 255, 255, 1));
+}
+
+.vdh-mgr-bottom-inner .vdh-mgr-doc-inline {
+	margin-top: 12px;
+	padding-top: 12px;
+}
+
 .vdh-mgr-bottom-row {
 	display: flex;
 	align-items: center;
@@ -320,6 +306,12 @@ body {
 	font-size: 13px;
 	font-weight: 900;
 	color: rgba(15, 23, 42, 0.78);
+	cursor: pointer;
+	transition: background 150ms ease, border-color 150ms ease;
+}
+
+.vdh-mgr-pill:hover {
+	background: rgba(15, 23, 42, 0.04);
 }
 
 .vdh-mgr-pill.active {
@@ -334,7 +326,7 @@ body {
 }
 
 .vdh-mgr-secondary {
-	margin-top: 10px;
+	margin-top: 0;
 	padding: 8px 12px;
 	border-radius: 10px;
 	border: 1px solid rgba(15, 23, 42, 0.16);
@@ -342,6 +334,12 @@ body {
 	font-size: 13px;
 	font-weight: 900;
 	color: rgba(15, 23, 42, 0.8);
+	cursor: pointer;
+	transition: background 150ms ease, border-color 150ms ease;
+}
+
+.vdh-mgr-secondary:hover:not(:disabled) {
+	background: rgba(15, 23, 42, 0.04);
 }
 
 .vdh-mgr-secondary.ghost {
@@ -355,7 +353,7 @@ body {
 }
 
 .vdh-mgr-save-row {
-	margin-top: 10px;
+	margin-top: 12px;
 	display: flex;
 	align-items: center;
 	gap: 10px;

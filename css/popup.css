@@ -237,13 +237,6 @@
 	cursor: not-allowed;
 }
 
-.vdh-video-checkbox {
-	width: 18px;
-	height: 18px;
-	cursor: pointer;
-	accent-color: var(--vdh-primary);
-}
-
 /* Tips Section */
 .vdh-tips-section {
 	padding: 16px 20px;

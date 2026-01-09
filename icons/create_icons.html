@@ -3,15 +3,106 @@
 
 <head>
 	<title>Generate Icons for Video Download Helper</title>
+	<style>
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+			max-width: 600px;
+			margin: 40px auto;
+			padding: 20px;
+			background: #f5f5f5;
+		}
+
+		h1 {
+			color: #333;
+		}
+
+		.preview {
+			display: flex;
+			gap: 20px;
+			align-items: flex-end;
+			margin: 30px 0;
+			padding: 20px;
+			background: #fff;
+			border-radius: 12px;
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+		}
+
+		.preview-item {
+			text-align: center;
+		}
+
+		.preview-item span {
+			display: block;
+			margin-top: 8px;
+			font-size: 12px;
+			color: #666;
+		}
+
+		canvas {
+			border-radius: 8px;
+		}
+
+		button {
+			background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
+			color: white;
+			border: none;
+			padding: 12px 24px;
+			border-radius: 8px;
+			font-size: 16px;
+			cursor: pointer;
+			transition: transform 0.2s, box-shadow 0.2s;
+		}
+
+		button:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+		}
+
+		#downloads {
+			margin-top: 20px;
+		}
+
+		#downloads a {
+			display: inline-block;
+			margin: 8px 8px 8px 0;
+			padding: 8px 16px;
+			background: #667EEA;
+			color: white;
+			text-decoration: none;
+			border-radius: 6px;
+			font-size: 14px;
+		}
+
+		#downloads a:hover {
+			background: #764BA2;
+		}
+	</style>
 </head>
 
 <body>
-	<h1>Icon Generator</h1>
-	<p>This page generates icons for the Chrome extension.</p>
+	<h1>🎬 Video Download Helper - Icon Generator</h1>
+	<p>Click the button to generate PNG icons from the new design.</p>
 
-	<canvas id="iconCanvas" width="128" height="128" style="border: 1px solid #ccc;"></canvas>
-	<br><br>
-	<button onclick="generateIcons()">Generate Icons</button>
+	<div class="preview">
+		<div class="preview-item">
+			<canvas id="canvas128" width="128" height="128"></canvas>
+			<span>128px</span>
+		</div>
+		<div class="preview-item">
+			<canvas id="canvas48" width="48" height="48"></canvas>
+			<span>48px</span>
+		</div>
+		<div class="preview-item">
+			<canvas id="canvas32" width="32" height="32"></canvas>
+			<span>32px</span>
+		</div>
+		<div class="preview-item">
+			<canvas id="canvas16" width="16" height="16"></canvas>
+			<span>16px</span>
+		</div>
+	</div>
+
+	<button onclick="generateIcons()">⬇️ Generate & Download All Icons</button>
 	<div id="downloads"></div>
 
 	<script>
@@ -19,105 +110,140 @@
 			const ctx = canvas.getContext('2d');
 			canvas.width = size;
 			canvas.height = size;
-
-			// Clear canvas
 			ctx.clearRect(0, 0, size, size);
 
-			// Create gradient background
-			const gradient = ctx.createLinearGradient(0, 0, size, size);
-			gradient.addColorStop(0, '#3b82f6');
-			gradient.addColorStop(1, '#8b5cf6');
+			const s = size / 128; // Scale factor
 
-			// Draw background circle
+			// Background gradient (purple theme)
+			const bgGrad = ctx.createLinearGradient(0, 0, size, size);
+			bgGrad.addColorStop(0, '#667EEA');
+			bgGrad.addColorStop(0.5, '#764BA2');
+			bgGrad.addColorStop(1, '#F093FB');
+
+			// Rounded rectangle background
+			const r = 26 * s;
+			const x = 8 * s, y = 8 * s, w = 112 * s, h = 112 * s;
 			ctx.beginPath();
-			ctx.arc(size / 2, size / 2, size * 0.45, 0, 2 * Math.PI);
-			ctx.fillStyle = gradient;
+			ctx.moveTo(x + r, y);
+			ctx.lineTo(x + w - r, y);
+			ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+			ctx.lineTo(x + w, y + h - r);
+			ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+			ctx.lineTo(x + r, y + h);
+			ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+			ctx.lineTo(x, y + r);
+			ctx.quadraticCurveTo(x, y, x + r, y);
+			ctx.closePath();
+
+			// Shadow
+			ctx.shadowColor = 'rgba(118, 75, 162, 0.4)';
+			ctx.shadowBlur = 8 * s;
+			ctx.shadowOffsetY = 4 * s;
+			ctx.fillStyle = bgGrad;
 			ctx.fill();
+			ctx.shadowColor = 'transparent';
 
-			// Add border
-			ctx.strokeStyle = '#2563eb';
-			ctx.lineWidth = size * 0.03;
-			ctx.stroke();
-
-			// Draw video play triangle
-			ctx.fillStyle = 'white';
-			ctx.globalAlpha = 0.9;
+			// Glass shine overlay
+			const shineGrad = ctx.createLinearGradient(0, y, 0, y + h / 2);
+			shineGrad.addColorStop(0, 'rgba(255,255,255,0.35)');
+			shineGrad.addColorStop(0.5, 'rgba(255,255,255,0.1)');
+			shineGrad.addColorStop(1, 'rgba(255,255,255,0)');
+			ctx.fillStyle = shineGrad;
 			ctx.beginPath();
-			ctx.moveTo(size * 0.35, size * 0.27);
-			ctx.lineTo(size * 0.35, size * 0.73);
-			ctx.lineTo(size * 0.74, size * 0.5);
+			ctx.moveTo(x + r, y);
+			ctx.lineTo(x + w - r, y);
+			ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+			ctx.lineTo(x + w, y + h / 2);
+			ctx.lineTo(x, y + h / 2);
+			ctx.lineTo(x, y + r);
+			ctx.quadraticCurveTo(x, y, x + r, y);
 			ctx.closePath();
 			ctx.fill();
 
-			// Draw download arrow
-			ctx.globalAlpha = 0.8;
-			ctx.strokeStyle = 'white';
-			ctx.lineWidth = size * 0.04;
-			ctx.lineCap = 'round';
-
-			// Vertical line
+			// Play button circle (background)
 			ctx.beginPath();
-			ctx.moveTo(size * 0.75, size * 0.2);
-			ctx.lineTo(size * 0.75, size * 0.4);
-			ctx.stroke();
+			ctx.arc(64 * s, 52 * s, 28 * s, 0, Math.PI * 2);
+			ctx.fillStyle = 'rgba(255,255,255,0.2)';
+			ctx.fill();
+
+			// Play button circle (foreground)
+			ctx.beginPath();
+			ctx.arc(64 * s, 52 * s, 24 * s, 0, Math.PI * 2);
+			ctx.fillStyle = 'rgba(255,255,255,0.95)';
+			ctx.fill();
+
+			// Play triangle
+			ctx.fillStyle = bgGrad;
+			ctx.beginPath();
+			ctx.moveTo(58 * s, 40 * s);
+			ctx.lineTo(58 * s, 64 * s);
+			ctx.lineTo(76 * s, 52 * s);
+			ctx.closePath();
+			ctx.fill();
+
+			// Download arrow
+			ctx.fillStyle = 'rgba(255,255,255,0.95)';
+
+			// Arrow stem
+			roundRect(ctx, 60 * s, 84 * s, 8 * s, 16 * s, 2 * s);
+			ctx.fill();
 
 			// Arrow head
 			ctx.beginPath();
-			ctx.moveTo(size * 0.68, size * 0.33);
-			ctx.lineTo(size * 0.75, size * 0.4);
-			ctx.lineTo(size * 0.82, size * 0.33);
-			ctx.stroke();
-
-			// Add small indicator dots
-			ctx.fillStyle = 'white';
-			ctx.globalAlpha = 0.6;
-			const dotSize = size * 0.03;
-
-			// Top-left dot
-			ctx.beginPath();
-			ctx.arc(size * 0.23, size * 0.23, dotSize, 0, 2 * Math.PI);
+			ctx.moveTo(64 * s, 108 * s);
+			ctx.lineTo(52 * s, 96 * s);
+			ctx.lineTo(56 * s, 92 * s);
+			ctx.lineTo(64 * s, 100 * s);
+			ctx.lineTo(72 * s, 92 * s);
+			ctx.lineTo(76 * s, 96 * s);
+			ctx.closePath();
 			ctx.fill();
 
-			// Bottom-right dot
-			ctx.beginPath();
-			ctx.arc(size * 0.77, size * 0.77, dotSize, 0, 2 * Math.PI);
+			// Base line
+			roundRect(ctx, 48 * s, 104 * s, 32 * s, 4 * s, 2 * s);
 			ctx.fill();
+		}
 
-			// Bottom-left dot
+		function roundRect(ctx, x, y, w, h, r) {
 			ctx.beginPath();
-			ctx.arc(size * 0.23, size * 0.77, dotSize, 0, 2 * Math.PI);
-			ctx.fill();
-
-			ctx.globalAlpha = 1;
+			ctx.moveTo(x + r, y);
+			ctx.lineTo(x + w - r, y);
+			ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+			ctx.lineTo(x + w, y + h - r);
+			ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+			ctx.lineTo(x + r, y + h);
+			ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+			ctx.lineTo(x, y + r);
+			ctx.quadraticCurveTo(x, y, x + r, y);
+			ctx.closePath();
 		}
 
 		function generateIcons() {
-			const canvas = document.getElementById('iconCanvas');
 			const sizes = [16, 32, 48, 128];
 			const downloads = document.getElementById('downloads');
-			downloads.innerHTML = '<h3>Generated Icons:</h3>';
+			downloads.innerHTML = '<strong>Click to download:</strong><br>';
 
 			sizes.forEach(size => {
+				const canvas = document.getElementById('canvas' + size);
 				drawIcon(canvas, size);
 
-				// Create download link
 				canvas.toBlob(function (blob) {
 					const url = URL.createObjectURL(blob);
 					const link = document.createElement('a');
 					link.href = url;
 					link.download = `icon${size}.png`;
-					link.textContent = `Download icon${size}.png`;
-					link.style.display = 'block';
-					link.style.marginBottom = '10px';
+					link.textContent = `icon${size}.png`;
 					downloads.appendChild(link);
 				});
 			});
 		}
 
-		// Generate preview icon on load
+		// Draw preview on load
 		window.onload = function () {
-			const canvas = document.getElementById('iconCanvas');
-			drawIcon(canvas, 128);
+			[128, 48, 32, 16].forEach(size => {
+				const canvas = document.getElementById('canvas' + size);
+				drawIcon(canvas, size);
+			});
 		};
 	</script>
 </body>

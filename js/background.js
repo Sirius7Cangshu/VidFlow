@@ -5,6 +5,7 @@
 const downloadQueue = new Map();
 const activeDownloads = new Map();
 const capturedVideosByTab = new Map();
+const __agentDbg = { segSkipOnce: new Set(), capCountByTab: new Map() };
 
 let extensionInitialized = false;
 let webRequestMonitorInitialized = false;
@@ -133,19 +134,19 @@ function setupMessageHandlers() {
 				sendResponse({ success: true, prefs: capturePrefs });
 				return true;
 
-		case 'updateCapturePrefs':
-			updateCapturePrefs(request.prefs, sendResponse);
-			return true;
+			case 'updateCapturePrefs':
+				updateCapturePrefs(request.prefs, sendResponse);
+				return true;
 
-		case 'videoDetected':
-			// Content script notifies about detected videos; we can ignore since
-			// webRequest listener already captures network-level video requests.
-			sendResponse({ success: true });
-			return true;
+			case 'videoDetected':
+				// Content script notifies about detected videos; we can ignore since
+				// webRequest listener already captures network-level video requests.
+				sendResponse({ success: true });
+				return true;
 
-		default:
-			sendResponse({ error: 'Unknown action' });
-	}
+			default:
+				sendResponse({ error: 'Unknown action' });
+		}
 	});
 }
 
@@ -233,7 +234,8 @@ function isVideoResponse(url, requestType, responseHeaders) {
 	}
 
 	// Ignore HLS segment noise (we download segments via playlist in manager)
-	if (/\.(ts)(\?.*)?$/.test(urlLower)) {
+	// Match patterns like: .ts, .ts?xxx, /0.ts, /seg_123.ts
+	if (/[\/\-_\.](\d+\.ts|seg[_\-]?\d*\.ts)(\?.*)?$/i.test(urlLower) || /\.ts(\?.*)?$/.test(urlLower)) {
 		return false;
 	}
 
@@ -280,13 +282,20 @@ function recordCapturedVideo(tabId, url, details) {
 	}
 
 	const urlLower = String(url || '').toLowerCase();
-	if (/\.(ts)(\?.*)?$/.test(urlLower)) {
+	if (isBlockedSourceUrl(url)) {
 		return;
 	}
-	if (/\.(vtt)(\?.*)?$/.test(urlLower)) {
+
+	// Do not capture stream segments as "videos" (manager will download segments via playlists).
+	// Sites may use suffix-based or query-based segment URLs, so we also filter by content-type below.
+	if (/\.(ts|m4s)(\?.*)?$/.test(urlLower) || urlLower.includes('.ts?')) {
 		return;
 	}
-	if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/.test(urlLower)) {
+
+	if (/\.(vtt|srt|vtt)(\?.*)?$/.test(urlLower)) {
+		return;
+	}
+	if (/\.(jpg|jpeg|png|gif|webp|css|js|html|json)(\?.*)?$/.test(urlLower)) {
 		return;
 	}
 
@@ -295,8 +304,31 @@ function recordCapturedVideo(tabId, url, details) {
 	const contentLengthStr = getHeaderValue(headers, 'content-length');
 	const sizeBytes = contentLengthStr ? Number(contentLengthStr) : 0;
 
+	const ct0 = String(contentType || '').toLowerCase().split(';')[0].trim();
+
 	// Always keep playlists (m3u8/mpd). They are small but essential for quality variants.
-	const isPlaylist = /\.(m3u8|mpd)(\?.*)?$/.test(urlLower);
+	const isPlaylist =
+		/\.(m3u8|mpd)(\?.*)?$/.test(urlLower) ||
+		ct0.includes('application/vnd.apple.mpegurl') ||
+		ct0.includes('application/x-mpegurl') ||
+		ct0.includes('application/dash+xml');
+
+	// Filter out segment-like responses even if URL has no .ts/.m4s suffix.
+	const isSegmentCt =
+		ct0.includes('video/mp2t') ||
+		ct0.includes('video/mpegts') ||
+		ct0.includes('video/iso.segment');
+	if (isSegmentCt) {
+		return;
+	}
+
+	// Only capture playlists and real direct video files.
+	const isVideoCt = ct0.startsWith('video/');
+	const isDirectVideoByExt = /\.(mp4|webm|mkv|mov|flv|avi)(\?.*)?$/.test(urlLower);
+	if (!isPlaylist && !(isVideoCt || isDirectVideoByExt)) {
+		return;
+	}
+
 	if (!isPlaylist && sizeBytes > 0 && sizeBytes < capturePrefs.minSizeBytes) {
 		return;
 	}
@@ -320,19 +352,52 @@ function recordCapturedVideo(tabId, url, details) {
 	}
 }
 
+function isBlockedSourceUrl(url) {
+	try {
+		const host = new URL(url).hostname.toLowerCase();
+		if (!host) return false;
+		if (host === 'cctv.com' || host.endsWith('.cctv.com')) return true;
+		if (host === 'cctv.cn' || host.endsWith('.cctv.cn')) return true;
+		if (host === 'cntv.cn' || host.endsWith('.cntv.cn')) return true;
+		return false;
+	} catch (_) {
+		return false;
+	}
+}
+
 function extractQualityFromUrl(url) {
 	const u = String(url || '');
-	const mRes = u.match(/(\d{3,4})x(\d{3,4})/i);
+
+	// Pattern 1: /1920x1080/ format
+	const mRes = u.match(/\/(\d{3,4})x(\d{3,4})\//i);
 	if (mRes) {
 		const h = Number(mRes[2]);
 		if (Number.isFinite(h) && h > 0) {
 			return `${h}p`;
 		}
 	}
-	const mP = u.match(/(\d{3,4})p\b/i);
+
+	// Pattern 2: /1080p/ or _1080p. format
+	const mP = u.match(/[/_](\d{3,4})p[/_.\-\?]/i);
 	if (mP) {
 		return `${mP[1]}p`;
 	}
+
+	// Pattern 3: Filename like /450.m3u8 or /1200.m3u8 (bitrate indicator)
+	const fileMatch = u.match(/\/(\d{3,4})\.m3u8/i);
+	if (fileMatch) {
+		const num = Number(fileMatch[1]);
+		if (num >= 2000) return '1080p';
+		if (num >= 1000) return '720p';
+		if (num >= 600) return '480p';
+		if (num >= 350) return '360p';
+		if (num >= 200) return '240p';
+		if (num === 1080 || num === 720 || num === 480 || num === 360 || num === 240) {
+			return `${num}p`;
+		}
+		return `${num}k`;
+	}
+
 	return null;
 }
 
@@ -359,6 +424,13 @@ function getCapturedVideos(tabId, sender, sendResponse) {
 
 	const tabMap = capturedVideosByTab.get(resolvedTabId);
 	const videos = tabMap ? Array.from(tabMap.values()) : [];
+	const lastCount = __agentDbg.capCountByTab.get(resolvedTabId);
+	if (lastCount !== videos.length) {
+		__agentDbg.capCountByTab.set(resolvedTabId, videos.length);
+		// #region agent log
+		fetch('http://127.0.0.1:7243/ingest/78df3085-8a1a-44d1-875a-154e367662c9', { method: 'POST', mode: 'no-cors', body: JSON.stringify({ sessionId: 'debug-session', runId: 'run2', hypothesisId: 'H2', location: 'background.js:getCapturedVideos', message: 'getCapturedVideos count changed', data: { resolvedTabId, tabMapSize: tabMap ? tabMap.size : 0, returnCount: videos.length, sample: videos.slice(0, 3).map(v => ({ type: v.type, quality: v.quality, srcTail: String(v.src || '').toLowerCase().split('/').pop().split('?')[0], sizeBytes: v.sizeBytes || 0, contentType: String(v.contentType || '').split(';')[0] })) }, timestamp: Date.now() }) }).catch(() => { });
+		// #endregion
+	}
 	sendResponse({ success: true, videos, count: videos.length });
 }
 
@@ -368,7 +440,13 @@ function clearCapturedVideos(tabId, sender, sendResponse) {
 		sendResponse({ success: false, error: 'No tab context' });
 		return;
 	}
+	const had = capturedVideosByTab.has(resolvedTabId);
+	const beforeSize = had && capturedVideosByTab.get(resolvedTabId) ? capturedVideosByTab.get(resolvedTabId).size : 0;
 	capturedVideosByTab.delete(resolvedTabId);
+	__agentDbg.capCountByTab.delete(resolvedTabId);
+	// #region agent log
+	fetch('http://127.0.0.1:7243/ingest/78df3085-8a1a-44d1-875a-154e367662c9', { method: 'POST', mode: 'no-cors', body: JSON.stringify({ sessionId: 'debug-session', runId: 'run2', hypothesisId: 'H1', location: 'background.js:clearCapturedVideos', message: 'clearCapturedVideos executed', data: { resolvedTabId, had, beforeSize, afterHad: capturedVideosByTab.has(resolvedTabId), tabsCount: capturedVideosByTab.size }, timestamp: Date.now() }) }).catch(() => { });
+	// #endregion
 	sendResponse({ success: true });
 }
 
@@ -433,14 +511,14 @@ async function startDownload(videoData, sendResponse) {
 			}
 
 			activeDownloads.set(chromeDownloadId, {
-			url,
-			title,
-			quality,
+				url,
+				title,
+				quality,
 				size: size || null,
-			format,
-			startTime: Date.now(),
+				format,
+				startTime: Date.now(),
 				phase: 'downloading'
-		});
+			});
 
 			notifyPopup('downloadProgress', {
 				downloadId: chromeDownloadId,
@@ -451,8 +529,8 @@ async function startDownload(videoData, sendResponse) {
 				message: 'Download started...'
 			});
 
-		sendResponse({
-			success: true,
+			sendResponse({
+				success: true,
 				downloadId: chromeDownloadId
 			});
 		});
@@ -989,8 +1067,17 @@ async function updateDownloadStats() {
 
 async function clearVideoCache(sendResponse) {
 	try {
-		// Clear stored video cache data
+		// Preserve user preferences before clearing
+		const prefsToKeep = await chrome.storage.local.get(['capturePrefs', 'managerPrefs', 'downloadStats']);
+
+		// Clear all cached video data
 		await chrome.storage.local.clear();
+
+		// Restore user preferences
+		if (prefsToKeep && Object.keys(prefsToKeep).length > 0) {
+			await chrome.storage.local.set(prefsToKeep);
+		}
+
 		sendResponse({ success: true });
 	} catch (error) {
 		sendResponse({ error: error.message });

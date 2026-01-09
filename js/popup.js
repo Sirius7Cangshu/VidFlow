@@ -180,6 +180,7 @@ class PopupManager {
 			this.currentTabUrl = tabUrl;
 			this.currentTabHostname = this.safeHostname(tabUrl);
 			this.currentTabId = tab && tab.id != null ? tab.id : null;
+			this.currentTabTitle = tab && tab.title ? String(tab.title) : '';
 
 			if (!this.isScriptableUrl(tabUrl)) {
 				this.updateStatus('warning', '该页面受浏览器限制，无法扫描');
@@ -349,12 +350,28 @@ class PopupManager {
 	isGoodPopupCandidate(video) {
 		if (!video || !video.src) return false;
 		if (this.isBlobOrDataUrl(video.src)) return false;
+		if (this.isBlockedSourceUrl(video.src)) return false;
 		if (!this.isLikelyDownloadUrl(video.src)) return false;
 		return Boolean(video.quality && video.quality !== 'unknown');
 	}
 
+	isBlockedSourceUrl(url) {
+		try {
+			const host = new URL(String(url || '')).hostname.toLowerCase();
+			if (!host) return false;
+			if (host === 'cctv.com' || host.endsWith('.cctv.com')) return true;
+			if (host === 'cctv.cn' || host.endsWith('.cctv.cn')) return true;
+			if (host === 'cntv.cn' || host.endsWith('.cntv.cn')) return true;
+			return false;
+		} catch (_) {
+			return false;
+		}
+	}
+
 	isLikelyDownloadUrl(url) {
 		const u = String(url || '').toLowerCase();
+		// Filter out .ts segment files (HLS segments should be downloaded via .m3u8 playlist)
+		if (/[\/\-_\.](\d+\.ts|seg[_\-]?\d*\.ts)(\?.*)?$/i.test(u)) return false;
 		if (u.includes('.ts') && !u.includes('.m3u8')) return false;
 		if (u.includes('.vtt')) return false;
 		if (u.includes('.jpg') || u.includes('.jpeg') || u.includes('.png') || u.includes('.gif') || u.includes('.webp')) return false;
@@ -365,11 +382,19 @@ class PopupManager {
 		if (u.includes('.mkv')) return true;
 		if (u.includes('.flv')) return true;
 		if (u.includes('.mpd')) return true;
-		if (u.includes('.m4s')) return true;
+		// .m4s is typically a DASH segment, not a downloadable "video" item in popup
+		if (u.includes('.m4s')) return false;
 		return false;
 	}
 
 	normalizeQuality(quality, src, videoWidth, videoHeight) {
+		// For m3u8 files with bitrate in filename (like /450.m3u8), always infer from URL first
+		const srcLower = String(src || '').toLowerCase();
+		if (srcLower.includes('.m3u8')) {
+			const inferred = this.inferQualityFromUrl(src);
+			if (inferred) return inferred;
+		}
+
 		const q = typeof quality === 'string' ? quality.trim().toLowerCase() : '';
 		if (q && q !== 'unknown') {
 			if (/^\d+p$/.test(q) || q === '4k' || q === 'hd' || q === 'sd') {
@@ -384,12 +409,36 @@ class PopupManager {
 
 	inferQualityFromUrl(url) {
 		try {
-			const u = new URL(url);
-			const m = u.pathname.match(/\/(\d{3,4})x(\d{3,4})\//);
-			if (m) {
-				const h = Number(m[2]);
+			const u = String(url || '');
+
+			// Prefer bitrate indicator in filename (e.g. /450.m3u8, /1200.m3u8)
+			const fileMatch = u.match(/[/_](\d{3,5})\.m3u8/i);
+			if (fileMatch) {
+				const num = Number(fileMatch[1]);
+				if (num >= 2000) return '1080p';
+				if (num >= 1000) return '720p';
+				if (num >= 600) return '480p';
+				if (num >= 350) return '360p';
+				if (num >= 200) return '240p';
+				if (num === 1080 || num === 720 || num === 480 || num === 360 || num === 240) {
+					return `${num}p`;
+				}
+				return `${num}k`;
+			}
+
+			// Pattern 1: /1920x1080/ format
+			const mRes = u.match(/\/(\d{3,4})x(\d{3,4})\//);
+			if (mRes) {
+				const h = Number(mRes[2]);
 				if (Number.isFinite(h) && h > 0) return `${h}p`;
 			}
+
+			// Pattern 2: /1080p/ or _1080p. format
+			const mP = u.match(/[/_](\d{3,4})p[/_.\-\?]/i);
+			if (mP) {
+				return `${mP[1]}p`;
+			}
+
 			return '';
 		} catch (error) {
 			return '';
@@ -481,17 +530,16 @@ class PopupManager {
 					<button class="vdh-download-btn" data-video-id="${escapedId}" data-quality="${escapedQuality}">
 						${btnLabel}
 					</button>
-					<input type="checkbox" class="vdh-video-checkbox" checked>
 				</div>
 			</div>
 		`;
 	}
 
 	getVideoTitle(video) {
-		const title = video.title || 'Unknown Video';
+		const title = this.currentTabTitle || video.title || 'Unknown Video';
 		const quality = video.quality && video.quality !== 'unknown' ? ` ${video.quality}` : '';
-		const filename = this.getFilenameFromUrl(video.src);
-		return `${title.substring(0, 20)}..${quality}[${filename}]`;
+		// Keep popup titles clean; filenames often look like "2000.m3u8" and are misleading.
+		return `${title.substring(0, 24)}${quality}`;
 	}
 
 	getFilenameFromUrl(url) {
@@ -532,7 +580,7 @@ class PopupManager {
 			const qs = new URLSearchParams();
 			if (tabId != null) qs.set('tabId', String(tabId));
 			qs.set('src', video.src);
-			qs.set('title', video.title || 'Captured Video');
+			qs.set('title', this.currentTabTitle || video.title || 'Captured Video');
 			qs.set('quality', quality || video.quality || 'unknown');
 			const masterUrl = video.hlsMasterUrl || this.deriveHlsMasterUrl(video.src);
 			if (masterUrl) qs.set('master', masterUrl);
@@ -603,12 +651,21 @@ class PopupManager {
 	}
 
 	handleVideoDetected(videoData) {
-		const existingVideo = this.videos.find(v => v.src === videoData.src);
-		if (!existingVideo) {
-			this.videos.push(videoData);
-			this.renderVideoList();
-			this.updateStatus('success', `已找到 ${this.videos.length} 个资源`);
+		// Content-script streaming noise must be filtered consistently with the main list.
+		const normalized = this.normalizeVideo(videoData);
+		if (!normalized) {
+			return;
 		}
+		if (!this.isGoodPopupCandidate(normalized)) {
+			return;
+		}
+		const existingVideo = this.videos.find(v => v.src === normalized.src);
+		if (existingVideo) {
+			return;
+		}
+		this.videos.push(normalized);
+		this.renderVideoList();
+		this.updateStatus('success', `已找到 ${this.videos.length} 个资源`);
 	}
 
 	updateStatus(type, message) {
