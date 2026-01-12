@@ -20,6 +20,8 @@ class ManagerPage {
 		this.pageUrl = '';
 		this.jobs = new Map();
 		this.results = new Map();
+		this._hlsMasterCache = new Map(); // masterUrl -> variants[]
+		this._mp4ResolutionCache = new Map(); // url -> { width, height, label }
 		this.errorCount = 0;
 		this._ffmpeg = null;
 		this._ffmpegLoaded = false;
@@ -27,6 +29,16 @@ class ManagerPage {
 		this._ffmpegLogRing = [];
 		this._ffmpegLogMax = 60;
 		this.init();
+	}
+
+	isReloadNavigation() {
+		try {
+			const nav = performance.getEntriesByType('navigation');
+			const type = nav && nav[0] && nav[0].type ? String(nav[0].type) : '';
+			return type === 'reload';
+		} catch (_) {
+			return false;
+		}
 	}
 
 	async init() {
@@ -39,6 +51,8 @@ class ManagerPage {
 		const preselectQuality = params.get('quality') || '';
 		const preselectMaster = params.get('master') || '';
 
+		const isReload = this.isReloadNavigation();
+
 		this.mountControls();
 		this.bindTopControls();
 		document.getElementById('recordModeBtn').addEventListener('click', () => this.startRecording('', preselectTitle, preselectQuality));
@@ -49,11 +63,44 @@ class ManagerPage {
 
 		await this.loadConsumerTabId();
 		await this.loadTabMeta();
+
+		// On browser reload: invalidate previous resources and show empty state immediately (图二)
+		if (isReload && this.tabId != null) {
+			try {
+				await chrome.runtime.sendMessage({ action: 'clearCapturedVideos', tabId: this.tabId });
+			} catch (_) {
+				// Ignore
+			}
+
+			this.results.clear();
+			this.recordingResult = null;
+			this.recordingKey = '';
+			this.paused = false;
+
+			const list = document.getElementById('list');
+			if (list) {
+				list.innerHTML = '';
+			}
+			const countEl = document.getElementById('count');
+			if (countEl) {
+				countEl.textContent = '0';
+			}
+			const empty = document.getElementById('empty');
+			if (empty) {
+				empty.classList.remove('hidden');
+			}
+			this.activeJobKey = '';
+			this.activeVideo = null;
+			this.updateToolbarState();
+			this.updateTopButtons();
+		}
+
 		await this.refresh();
 
 		this.startAutoRefresh();
 
-		if (preselectSrc) {
+		// On reload, ignore preselect to avoid showing stale resources
+		if (preselectSrc && !isReload) {
 			// URLSearchParams.get() auto-decodes, no need for decodeURIComponent
 			this.preselect = {
 				src: preselectSrc,
@@ -68,7 +115,6 @@ class ManagerPage {
 	bindTopControls() {
 		this.resolutionSelect = document.getElementById('resolutionSelect');
 		const savePartialBtn = document.getElementById('savePartialBtn');
-		const copyLinkBtn = document.getElementById('copyLinkBtn');
 		const errorCount = document.getElementById('errorCount');
 
 		for (const btn of document.querySelectorAll('.vdh-mgr-pill')) {
@@ -92,18 +138,6 @@ class ManagerPage {
 			savePartialBtn.addEventListener('click', () => {
 				if (!this.activeVideo) return;
 				this.saveCurrentPart(this.activeVideo);
-			});
-		}
-		if (copyLinkBtn) {
-			copyLinkBtn.addEventListener('click', async () => {
-				if (!this.activeVideo) return;
-				try {
-					const url = this.activeVideo.selectedUrl || this.activeVideo.src || '';
-					if (!url) return;
-					await navigator.clipboard.writeText(url);
-				} catch (error) {
-					// Ignore
-				}
 			});
 		}
 
@@ -149,11 +183,10 @@ class ManagerPage {
 
 	updateTopButtons() {
 		const savePartialBtn = document.getElementById('savePartialBtn');
-		const copyLinkBtn = document.getElementById('copyLinkBtn');
 		if (savePartialBtn) {
 			if (!this.activeVideo) {
 				savePartialBtn.disabled = true;
-				savePartialBtn.textContent = '保存当前部分';
+				savePartialBtn.textContent = '保存';
 			} else {
 				const job = this.jobs.get(this.activeVideo.key);
 				// Disable if cache was cleared
@@ -164,12 +197,9 @@ class ManagerPage {
 					const hasPartial = Boolean(job && job.hls && job.hls.contiguousCount > 0);
 					const hasFinal = this.results.has(this.activeVideo.key);
 					savePartialBtn.disabled = !(hasPartial || hasFinal);
-					savePartialBtn.textContent = (hasFinal || (job && job.lastPct >= 100)) ? '保存' : '保存当前部分';
+					savePartialBtn.textContent = '保存';
 				}
 			}
-		}
-		if (copyLinkBtn) {
-			copyLinkBtn.disabled = !this.activeVideo || !(this.activeVideo.selectedUrl || this.activeVideo.src);
 		}
 	}
 
@@ -354,6 +384,7 @@ class ManagerPage {
 					title,
 					sizeBytes: 0,
 					variants: [],
+					playlists: [],
 					selectedUrl: '',
 					selectedQuality: ''
 				});
@@ -363,6 +394,9 @@ class ManagerPage {
 			g.sizeBytes = Math.max(g.sizeBytes, sizeBytes);
 
 			if (kind === 'm3u8') {
+				if (Array.isArray(g.playlists) && !g.playlists.includes(src)) {
+					g.playlists.push(src);
+				}
 				const label = this.hlsQualityLabel(src, quality);
 				if (label) {
 					g.variants.push({ label, url: src });
@@ -424,6 +458,20 @@ class ManagerPage {
 		}
 	}
 
+	qualityLabelFromHeight(height) {
+		const h = Number(height);
+		if (!Number.isFinite(h) || h <= 0) return '';
+		// Normalize to standard resolutions: 4k, 2k, 1080p, 720p, 480p, 360p, 240p
+		if (h >= 2160) return '4k';
+		if (h >= 1440) return '2k';
+		if (h >= 1080) return '1080p';
+		if (h >= 720) return '720p';
+		if (h >= 480) return '480p';
+		if (h >= 360) return '360p';
+		if (h >= 240) return '240p';
+		return `${h}p`;
+	}
+
 	normalizeQuality(quality, src) {
 		// For m3u8 files with bitrate in filename, always infer from URL first
 		const srcLower = String(src || '').toLowerCase();
@@ -434,8 +482,12 @@ class ManagerPage {
 
 		const q = typeof quality === 'string' ? quality.trim().toLowerCase() : '';
 		if (q && q !== 'unknown') {
-			if (/^\d+p$/.test(q) || q === '4k') {
+			if (q === '4k' || q === '2k') {
 				return q;
+			}
+			if (/^\d+p$/.test(q)) {
+				const n = Number(q.slice(0, -1));
+				return this.qualityLabelFromHeight(n) || q;
 			}
 		}
 		const inferred = this.inferQualityFromUrl(src);
@@ -451,18 +503,17 @@ class ManagerPage {
 			const mNum = u.match(/[/_](\d{3,5})\.m3u8/i);
 			if (mNum) {
 				const num = Number(mNum[1]);
-				// Map bitrate to quality
+				// If it looks like a resolution height, prefer it.
+				if ([2160, 1440, 1080, 720, 480, 360, 240].includes(num)) {
+					return this.qualityLabelFromHeight(num);
+				}
+				// Otherwise treat as bitrate (kbps) and map roughly.
 				if (num >= 2000) return '1080p';
 				if (num >= 1000) return '720p';
 				if (num >= 600) return '480p';
 				if (num >= 350) return '360p';
 				if (num >= 200) return '240p';
-
-				// Standard resolutions
-				if ([1080, 720, 480, 360, 240].includes(num)) {
-					return `${num}p`;
-				}
-				return `${num}k`;
+				return '';
 			}
 
 			// Pattern 1: /1920x1080/ format
@@ -470,14 +521,15 @@ class ManagerPage {
 			if (mRes) {
 				const h = Number(mRes[2]);
 				if (Number.isFinite(h) && h > 0) {
-					return `${h}p`;
+					return this.qualityLabelFromHeight(h);
 				}
 			}
 
 			// Pattern 2: /1080p/ or _1080p. format
 			const mP = u.match(/[/_](\d{3,4})p[/_.\-\?]/i);
 			if (mP) {
-				return `${mP[1]}p`;
+				const h = Number(mP[1]);
+				return this.qualityLabelFromHeight(h) || `${mP[1]}p`;
 			}
 
 			return '';
@@ -492,8 +544,12 @@ class ManagerPage {
 			return inferred;
 		}
 		const q = typeof fallbackQuality === 'string' ? fallbackQuality.trim().toLowerCase() : '';
-		if (q && q !== 'unknown' && /^\d+p$/.test(q)) {
-			return q;
+		if (q && q !== 'unknown') {
+			if (q === '4k' || q === '2k') return q;
+			if (/^\d+p$/.test(q)) {
+				const n = Number(q.slice(0, -1));
+				return this.qualityLabelFromHeight(n) || q;
+			}
 		}
 		return '';
 	}
@@ -634,6 +690,10 @@ class ManagerPage {
 		};
 		const list = document.getElementById('list');
 		if (list) {
+			const empty = document.getElementById('empty');
+			if (empty) {
+				empty.classList.add('hidden');
+			}
 			list.prepend(this.renderRow(synthetic));
 			const countEl = document.getElementById('count');
 			if (countEl) {
@@ -688,7 +748,7 @@ class ManagerPage {
 				continue;
 			}
 			const m = line.match(/RESOLUTION=(\d+)x(\d+)/i);
-			const label = m ? `${m[2]}p` : (this.inferQualityFromUrl(next) || '');
+			const label = m ? (this.qualityLabelFromHeight(Number(m[2])) || '') : (this.inferQualityFromUrl(next) || '');
 			if (!label) {
 				continue;
 			}
@@ -754,9 +814,30 @@ class ManagerPage {
 		if (!this.resolutionSelect) {
 			return;
 		}
-		if (!video || !Array.isArray(video.variants) || video.variants.length === 0) {
+		if (!video) {
 			this.resolutionSelect.innerHTML = '<option value="">-</option>';
 			this.resolutionSelect.disabled = true;
+			return;
+		}
+
+		if (video.kind === 'm3u8') {
+			this.ensureHlsMasterVariants(video).catch(() => { /* Ignore */ });
+		}
+
+		// Direct link file: show current quality as a single option so the UI doesn't look broken.
+		if (!Array.isArray(video.variants) || video.variants.length === 0) {
+			const label = String(video.selectedQuality || video.quality || '').trim();
+			const url = String(video.selectedUrl || video.src || '').trim();
+			if (label && url) {
+				this.resolutionSelect.innerHTML = `<option value="${this.escapeAttr(url)}">${this.escapeHtml(label)}</option>`;
+				this.resolutionSelect.value = url;
+				this.resolutionSelect.disabled = true;
+			} else {
+				this.resolutionSelect.innerHTML = '<option value="">-</option>';
+				this.resolutionSelect.disabled = true;
+			}
+			this.ensureMp4Resolution(video).catch(() => { /* Ignore */ });
+			this.updateTopButtons();
 			return;
 		}
 		const opts = video.variants
@@ -766,6 +847,252 @@ class ManagerPage {
 		this.resolutionSelect.value = video.selectedUrl || opts[0].url;
 		this.resolutionSelect.disabled = false;
 		this.updateTopButtons();
+	}
+
+	async ensureHlsMasterVariants(video) {
+		if (!video || video.kind !== 'm3u8') {
+			return;
+		}
+		if (video.__masterResolved || video.__masterResolving) {
+			return;
+		}
+		video.__masterResolving = true;
+		try {
+			const candidates = [];
+			const add = (u) => {
+				const s = String(u || '').trim();
+				if (!s) return;
+				if (!candidates.includes(s)) candidates.push(s);
+			};
+
+			add(video.selectedUrl || '');
+			if (Array.isArray(video.playlists)) {
+				for (const u of video.playlists) add(u);
+			}
+			if (Array.isArray(video.variants)) {
+				for (const v of video.variants) add(v && v.url ? v.url : '');
+			}
+
+			const derived = this.deriveHlsMasterUrl(video.selectedUrl || '');
+			add(derived);
+
+			const score = (u) => {
+				const s = String(u || '').toLowerCase();
+				let k = 0;
+				if (s.includes('master')) k += 3;
+				if (s.includes('playlist')) k += 2;
+				if (s.includes('index')) k += 1;
+				return k;
+			};
+			candidates.sort((a, b) => score(b) - score(a));
+
+			for (const masterUrl of candidates.slice(0, 6)) {
+				let variants = this._hlsMasterCache.get(masterUrl);
+				if (!variants) {
+					variants = await this.fetchHlsMasterVariants(masterUrl);
+					this._hlsMasterCache.set(masterUrl, Array.isArray(variants) ? variants : []);
+				}
+				if (!Array.isArray(variants) || variants.length === 0) {
+					continue;
+				}
+
+				const dedup = new Map();
+				for (const it of variants) {
+					if (!it || !it.label || !it.url) continue;
+					if (!dedup.has(it.label)) {
+						dedup.set(it.label, it.url);
+					}
+				}
+				const list = Array.from(dedup.entries()).map(([label, url]) => ({ label, url }));
+				list.sort((a, b) => this.compareQuality(b.label, a.label));
+				if (list.length === 0) {
+					continue;
+				}
+
+				video.variants = list;
+				const keep = video.selectedUrl ? list.find(x => x && x.url === video.selectedUrl) : null;
+				if (keep) {
+					video.selectedQuality = keep.label || '';
+				} else {
+					video.selectedUrl = list[0].url;
+					video.selectedQuality = list[0].label;
+				}
+				video.__masterResolved = true;
+
+				if (this.activeVideo && this.activeVideo.key === video.key) {
+					this.activeVideo = video;
+					this.updateResolutionSelect(video);
+				}
+				break;
+			}
+		} catch (_) {
+			// Ignore
+		} finally {
+			video.__masterResolving = false;
+		}
+	}
+
+	async ensureMp4Resolution(video) {
+		if (!video || video.kind !== 'file') {
+			return;
+		}
+		if (video.__mp4Resolved || video.__mp4Resolving) {
+			return;
+		}
+
+		const url = String(video.selectedUrl || video.src || '').trim();
+		if (!url) {
+			return;
+		}
+
+		video.__mp4Resolving = true;
+		try {
+			const cached = this._mp4ResolutionCache.get(url);
+			if (cached && cached.label) {
+				video.selectedQuality = cached.label;
+				video.__mp4Resolved = true;
+				if (this.activeVideo && this.activeVideo.key === video.key) {
+					this.activeVideo = video;
+					this.updateResolutionSelect(video);
+				}
+				return;
+			}
+
+			const head = await this.probeRangeSupport(video.key || url, url);
+			if (!head || !head.totalBytes || !head.acceptRanges) {
+				return;
+			}
+			const ct = String(head.contentType || '').toLowerCase();
+			const isMp4 = url.toLowerCase().includes('.mp4') || ct.includes('mp4');
+			if (!isMp4) {
+				return;
+			}
+
+			const total = Number(head.totalBytes || 0);
+			if (!total || !Number.isFinite(total) || total <= 0) {
+				return;
+			}
+			const chunkSize = Math.min(2 * 1024 * 1024, total);
+
+			const headBytes = await this.fetchRangeBytes(url, 0, Math.min(total - 1, chunkSize - 1));
+			let wh = headBytes ? this.extractMp4VideoResolution(headBytes) : null;
+
+			if (!wh && total > chunkSize) {
+				const start = Math.max(0, total - chunkSize);
+				const tailBytes = await this.fetchRangeBytes(url, start, total - 1);
+				wh = tailBytes ? this.extractMp4VideoResolution(tailBytes) : null;
+			}
+
+			if (!wh || !wh.width || !wh.height) {
+				return;
+			}
+			const label = this.qualityLabelFromHeight(wh.height);
+			if (!label) {
+				return;
+			}
+
+			const out = { width: wh.width, height: wh.height, label };
+			this._mp4ResolutionCache.set(url, out);
+
+			video.selectedQuality = label;
+			video.__mp4Resolved = true;
+			if (this.activeVideo && this.activeVideo.key === video.key) {
+				this.activeVideo = video;
+				this.updateResolutionSelect(video);
+			}
+		} catch (_) {
+			// Ignore
+		} finally {
+			video.__mp4Resolving = false;
+		}
+	}
+
+	async fetchRangeBytes(url, start, end) {
+		const ctrl = new AbortController();
+		const timer = setTimeout(() => ctrl.abort(), 8000);
+		try {
+			const r = await fetch(url, {
+				method: 'GET',
+				credentials: 'include',
+				headers: { Range: `bytes=${start}-${end}` },
+				signal: ctrl.signal
+			});
+			if (!(r.ok || r.status === 206)) {
+				return null;
+			}
+			return new Uint8Array(await r.arrayBuffer());
+		} finally {
+			clearTimeout(timer);
+		}
+	}
+
+	scanMp4Box(bytes, targetType) {
+		const type = String(targetType || '');
+		if (!type || type.length !== 4) return null;
+		const end = bytes instanceof Uint8Array ? bytes.byteLength : 0;
+		for (let i = 0; i + 8 <= end; i++) {
+			if (this.readType(bytes, i + 4) !== type) continue;
+			let size = this.readU32(bytes, i);
+			let header = 8;
+			if (size === 1) {
+				if (i + 16 > end) continue;
+				size = Number(this.readU64(bytes, i + 8));
+				header = 16;
+			} else if (size === 0) {
+				size = end - i;
+			}
+			if (size < header || i + size > end) continue;
+			return { payloadStart: i + header, boxEnd: i + size };
+		}
+		return null;
+	}
+
+	readTkhdWidthHeight(bytes, payloadStart, boxEnd) {
+		if (payloadStart + 4 > boxEnd) return null;
+		const version = bytes[payloadStart];
+		const off = version === 1 ? (payloadStart + 88) : (payloadStart + 76);
+		if (off + 8 > boxEnd) return null;
+		const wFixed = this.readU32(bytes, off);
+		const hFixed = this.readU32(bytes, off + 4);
+		const width = Math.round(wFixed / 65536);
+		const height = Math.round(hFixed / 65536);
+		if (!width || !height) return null;
+		return { width, height };
+	}
+
+	extractMp4VideoResolution(bytes) {
+		try {
+			const moov = this.scanMp4Box(bytes, 'moov');
+			if (!moov) return null;
+			const moovKids = this.parseMp4Boxes(bytes, moov.payloadStart, moov.boxEnd);
+			const traks = moovKids.filter(b => b && b.type === 'trak');
+			if (!traks.length) return null;
+
+			let targetTrak = null;
+			for (const trak of traks) {
+				const kids = this.parseMp4Boxes(bytes, trak.payloadStart, trak.boxEnd);
+				const mdia = kids.find(b => b && b.type === 'mdia');
+				if (!mdia) continue;
+				const mdiaKids = this.parseMp4Boxes(bytes, mdia.payloadStart, mdia.boxEnd);
+				const hdlr = mdiaKids.find(b => b && b.type === 'hdlr');
+				if (!hdlr) continue;
+				if (hdlr.payloadStart + 12 > hdlr.boxEnd) continue;
+				const handler = this.readType(bytes, hdlr.payloadStart + 8);
+				if (handler === 'vide') {
+					targetTrak = trak;
+					break;
+				}
+			}
+			if (!targetTrak) {
+				targetTrak = traks[0];
+			}
+			const trakKids = this.parseMp4Boxes(bytes, targetTrak.payloadStart, targetTrak.boxEnd);
+			const tkhd = trakKids.find(b => b && b.type === 'tkhd');
+			if (!tkhd) return null;
+			return this.readTkhdWidthHeight(bytes, tkhd.payloadStart, tkhd.boxEnd);
+		} catch (_) {
+			return null;
+		}
 	}
 
 	escapeHtml(s) {
@@ -936,12 +1263,20 @@ class ManagerPage {
 
 		if (!videos || videos.length === 0) {
 			empty.classList.remove('hidden');
+			this.activeVideo = null;
+			this.updateResolutionSelect(null);
 			return;
 		}
 		empty.classList.add('hidden');
 
 		for (const v of videos) {
 			list.appendChild(this.renderRow(v));
+		}
+
+		// Auto-select first video and update resolution dropdown
+		if (videos.length > 0 && !this.activeVideo) {
+			this.activeVideo = videos[0];
+			this.updateResolutionSelect(videos[0]);
 		}
 	}
 
@@ -950,11 +1285,14 @@ class ManagerPage {
 		row.className = 'p-4';
 		row.setAttribute('data-job-key', video.key);
 
-		const left = document.createElement('div');
-		left.className = 'min-w-0 flex-1';
+		const center = document.createElement('div');
+		center.className = 'vdh-row-center';
+
+		const titleRow = document.createElement('div');
+		titleRow.className = 'flex items-center gap-3 min-w-0';
 
 		const title = document.createElement('div');
-		title.className = 'text-sm font-semibold text-gray-900 truncate';
+		title.className = 'text-sm font-semibold text-gray-900 truncate min-w-0 flex-1';
 		title.textContent = video.title || this.pageTitle || 'Captured Video';
 
 		const meta = document.createElement('div');
@@ -976,39 +1314,51 @@ class ManagerPage {
 			meta.appendChild(q);
 		}
 
-		const url = document.createElement('div');
-		url.className = 'mt-2 text-xs text-gray-500 truncate';
-		url.textContent = video.selectedUrl || video.src || '';
+		const copyBtn = document.createElement('button');
+		copyBtn.className = 'vdh-copy-btn';
+		copyBtn.textContent = '复制';
+		copyBtn.addEventListener('click', async (e) => {
+			e.stopPropagation();
+			const urlText = video.selectedUrl || video.src || '';
+			if (!urlText) return;
+			try {
+				await navigator.clipboard.writeText(urlText);
+				copyBtn.textContent = '已复制';
+				setTimeout(() => { copyBtn.textContent = '复制'; }, 1500);
+			} catch (err) {
+				console.warn('Copy failed:', err);
+			}
+		});
 
-		const top = document.createElement('div');
-		top.className = 'flex items-start justify-between gap-4';
-
-		left.appendChild(title);
-		left.appendChild(meta);
-		left.appendChild(url);
-
-		const progress = document.createElement('div');
-		progress.className = 'mt-3';
+		titleRow.appendChild(title);
+		titleRow.appendChild(copyBtn);
 
 		const progressEl = this.renderProgress(video.key, null, kind);
-		progress.appendChild(progressEl);
 
 		const job = this.jobs.get(video.key);
 		if (job) {
 			job.video = video;
 		}
 
-		top.appendChild(left);
-		row.appendChild(top);
-		row.appendChild(progress);
+		center.appendChild(titleRow);
+		center.appendChild(meta);
+		center.appendChild(progressEl);
+		row.appendChild(center);
 
 		row.addEventListener('click', (e) => {
 			if (e.target instanceof Element && e.target.closest('button')) {
 				return;
 			}
-			// Prevent selection/download if cache was cleared
 			const job = this.jobs.get(video.key);
+			// Prevent if cache cleared
 			if (job && job.cleared) {
+				return;
+			}
+			// Prevent re-download if already running or completed
+			if (job && job.status === 'running') {
+				return;
+			}
+			if (this.results.has(video.key)) {
 				return;
 			}
 			this.activeVideo = video;
@@ -1022,10 +1372,11 @@ class ManagerPage {
 
 	renderProgress(key, actionBtn, kind) {
 		const container = document.createElement('div');
-		container.className = 'w-full';
+		container.className = 'vdh-progress';
 
-		const row = document.createElement('div');
-		row.className = 'vdh-progress-row';
+		const speed = document.createElement('div');
+		speed.className = 'vdh-progress-speed';
+		speed.textContent = '速度：—';
 
 		const track = document.createElement('div');
 		track.className = 'vdh-progress-track';
@@ -1034,11 +1385,8 @@ class ManagerPage {
 		bar.className = 'vdh-progress-bar';
 		bar.style.width = '0%';
 
-		const right = document.createElement('div');
-		right.className = 'vdh-progress-right';
-
 		const pct = document.createElement('div');
-		pct.className = 'vdh-progress-percent';
+		pct.className = 'vdh-progress-inside';
 		pct.textContent = '0%';
 
 		const text = document.createElement('div');
@@ -1046,13 +1394,27 @@ class ManagerPage {
 		text.textContent = '';
 
 		track.appendChild(bar);
-		right.appendChild(pct);
-		right.appendChild(text);
-		row.appendChild(track);
-		row.appendChild(right);
-		container.appendChild(row);
+		track.appendChild(pct);
+		container.appendChild(speed);
+		container.appendChild(track);
+		container.appendChild(text);
 
-		this.jobs.set(key, { container, controlsSlot: null, bar, pct, text, kind, video: null, hls: null, status: 'idle', lastPct: 0, controller: null, cleared: false });
+		this.jobs.set(key, {
+			container,
+			controlsSlot: null,
+			bar,
+			pct,
+			text,
+			speed,
+			speedSamples: [],
+			kind,
+			video: null,
+			hls: null,
+			status: 'idle',
+			lastPct: 0,
+			controller: null,
+			cleared: false
+		});
 		return container;
 	}
 
@@ -1071,6 +1433,35 @@ class ManagerPage {
 		job.bar.style.width = `${pct}%`;
 		job.pct.textContent = `${pct}%`;
 		job.text.textContent = message || '';
+	}
+
+	noteDownloadedBytes(key, deltaBytes) {
+		const job = this.jobs.get(key);
+		if (!job || !job.speed || !Number.isFinite(deltaBytes) || deltaBytes <= 0) {
+			return;
+		}
+		const now = Date.now();
+		if (!Array.isArray(job.speedSamples)) {
+			job.speedSamples = [];
+		}
+		job.speedSamples.push({ t: now, b: deltaBytes });
+
+		const cutoff = now - 1500;
+		while (job.speedSamples.length && job.speedSamples[0].t < cutoff) {
+			job.speedSamples.shift();
+		}
+		const first = job.speedSamples[0];
+		if (!first) {
+			job.speed.textContent = '速度：—';
+			return;
+		}
+		let bytes = 0;
+		for (const s of job.speedSamples) {
+			bytes += s.b;
+		}
+		const dt = Math.max(250, now - first.t);
+		const bps = (bytes * 1000) / dt;
+		job.speed.textContent = bps > 0 ? `速度：${this.formatBytes(Math.round(bps))}/s` : '速度：—';
 	}
 
 	queueDownload(video) {
@@ -1092,6 +1483,14 @@ class ManagerPage {
 			job.bar.style.width = '0%';
 			job.pct.textContent = '0%';
 			job.text.textContent = '';
+			if (job.speed) {
+				job.speed.textContent = '速度：—';
+			}
+			if (Array.isArray(job.speedSamples)) {
+				job.speedSamples.length = 0;
+			} else {
+				job.speedSamples = [];
+			}
 			job.status = 'running';
 			job.kind = video.kind || this.getKind(url);
 			job.video = video;
@@ -1174,6 +1573,7 @@ class ManagerPage {
 		const order = {
 			'4k': 4000,
 			'2160p': 2160,
+			'2k': 1440,
 			'1440p': 1440,
 			'1080p': 1080,
 			'720p': 720,
@@ -1330,6 +1730,7 @@ class ManagerPage {
 				if (done) break;
 				chunks.push(value);
 				loaded += value.byteLength;
+				this.noteDownloadedBytes(key, value.byteLength);
 				if (total > 0) {
 					const p = Math.round((loaded / total) * 100);
 					this.setJobProgress(key, p, '下载中…');
@@ -1339,6 +1740,7 @@ class ManagerPage {
 			const buf = await res.arrayBuffer();
 			chunks.push(new Uint8Array(buf));
 			loaded = buf.byteLength;
+			this.noteDownloadedBytes(key, loaded);
 		}
 
 		this.setJobProgress(key, 98, '处理中…');
@@ -1400,6 +1802,7 @@ class ManagerPage {
 			}
 			results[index] = new Uint8Array(await r.arrayBuffer());
 			downloadedBytes += results[index].byteLength;
+			this.noteDownloadedBytes(key, results[index].byteLength);
 			let pct = Math.floor((downloadedBytes / totalBytes) * 100);
 			if (pct === 0 && downloadedBytes > 0) {
 				pct = 1;
@@ -1489,6 +1892,7 @@ class ManagerPage {
 				}
 				results[index] = new Uint8Array(await r.arrayBuffer());
 				downloadedBytes += results[index].byteLength;
+				this.noteDownloadedBytes(key, results[index].byteLength);
 				let pct = head.totalBytes > 0 ? Math.floor((downloadedBytes / head.totalBytes) * 100) : 0;
 				if (pct === 0 && downloadedBytes > 0) pct = 1;
 				const scaled = startPct + Math.floor(span * (pct / 100));
@@ -1535,6 +1939,7 @@ class ManagerPage {
 				if (done) break;
 				chunks.push(value);
 				loaded += value.byteLength;
+				this.noteDownloadedBytes(key, value.byteLength);
 				if (total > 0) {
 					const pct = Math.floor((loaded / total) * 100);
 					const scaled = startPct + Math.floor(span * (pct / 100));
@@ -1545,6 +1950,7 @@ class ManagerPage {
 			const buf = await res.arrayBuffer();
 			chunks.push(new Uint8Array(buf));
 			loaded = buf.byteLength;
+			this.noteDownloadedBytes(key, loaded);
 		}
 
 		const out = new Uint8Array(loaded);
@@ -2023,6 +2429,7 @@ class ManagerPage {
 				throw new Error(`Init HTTP ${initRes.status}`);
 			}
 			const initSeg = new Uint8Array(await initRes.arrayBuffer());
+			this.noteDownloadedBytes(key, initSeg.byteLength);
 			if (job && job.hls) {
 				job.hls.initSeg = initSeg;
 			}
@@ -2076,6 +2483,7 @@ class ManagerPage {
 					}
 				}
 				results[i] = segBytes;
+				this.noteDownloadedBytes(key, segBytes.byteLength);
 				if (job && job.hls) {
 					job.hls.downloaded[i] = results[i];
 					let c = 0;
@@ -2978,37 +3386,17 @@ class ManagerPage {
 		if (job) {
 			job.status = 'idle';
 			job.controller = null;
-			job.autoSaveScheduled = true;
 		}
 		if (this.activeJobKey === key) {
 			this.updateToolbarState();
 		}
 		this.updateTopButtons();
-
-		// Auto-save and clear cache 3 seconds after download completes
-		setTimeout(() => {
-			// Only auto-save if not already saved manually
-			const currentJob = this.jobs.get(key);
-			if (currentJob && currentJob.autoSaveScheduled && this.results.has(key)) {
-				currentJob.autoSaveScheduled = false;
-				this.saveResult(key);
-				// Then clear all cache (irreversible)
-				setTimeout(() => {
-					this.clearCache();
-				}, 500);
-			}
-		}, 3000);
 	}
 
 	saveResult(key) {
 		const r = this.results.get(key);
 		if (!r) {
 			return;
-		}
-		// Mark as manually saved to prevent duplicate auto-save
-		const job = this.jobs.get(key);
-		if (job) {
-			job.autoSaveScheduled = false;
 		}
 		this.downloadViaBrowser(r.blob, r.filename);
 	}
@@ -3018,15 +3406,11 @@ class ManagerPage {
 			return;
 		}
 		const key = video.key;
-		// Mark as manually saved to prevent duplicate auto-save
-		const job = this.jobs.get(key);
-		if (job) {
-			job.autoSaveScheduled = false;
-		}
 		if (this.results.has(key)) {
 			this.saveResult(key);
 			return;
 		}
+		const job = this.jobs.get(key);
 
 		if (!job || !job.hls || !job.hls.downloaded || !job.hls.segments) {
 			return;

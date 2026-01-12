@@ -1,10 +1,22 @@
 /* Video Download Helper - Manager Page Styles */
 
+:root {
+	--vdh-bg: #f6f7f4;
+	--vdh-surface: #ffffff;
+	--vdh-border: rgba(15, 23, 42, 0.08);
+	--vdh-text: #0f172a;
+	--vdh-muted: rgba(15, 23, 42, 0.65);
+	--vdh-accent: #0f766e;
+	--vdh-accent-2: #0d9488;
+}
+
 /* Override popup constraints when reusing popup.css */
 body {
 	min-width: 0;
 	max-width: none;
 	max-height: none;
+	background: var(--vdh-bg);
+	color: var(--vdh-text);
 }
 
 /* Manager page layout */
@@ -144,7 +156,7 @@ body {
 .vdh-mgr-btn.primary {
 	border: none;
 	color: #fff;
-	background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+	background: var(--vdh-accent);
 }
 
 .vdh-mgr-btn.danger {
@@ -191,13 +203,13 @@ body {
 .vdh-task-btn.primary {
 	border: none;
 	color: #fff;
-	background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+	background: var(--vdh-accent);
 }
 
 .vdh-task-btn.danger {
 	border: none;
 	color: #fff;
-	background: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
+	background: #ef4444;
 }
 
 .vdh-task-btn.ghost {
@@ -208,49 +220,97 @@ body {
 
 /* Row actions - kept for potential future use */
 
-.vdh-progress-row {
-	width: 100%;
-	max-width: 64rem;
+.vdh-row-center {
+	width: 92%;
+	margin: 0 auto;
 	display: flex;
+	flex-direction: column;
+}
+
+.vdh-copy-btn {
+	display: inline-flex;
 	align-items: center;
-	gap: 14px;
+	justify-content: center;
+	padding: 4px 10px;
+	border-radius: 999px;
+	border: 1px solid rgba(15, 23, 42, 0.12);
+	background: rgba(255, 255, 255, 0.9);
+	color: rgba(15, 23, 42, 0.72);
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: 0.2px;
+	white-space: nowrap;
+	transition: background 150ms ease, border-color 150ms ease, transform 150ms ease, opacity 150ms ease;
+	user-select: none;
+}
+
+.vdh-copy-btn:hover {
+	background: #fff;
+	border-color: rgba(15, 23, 42, 0.18);
+}
+
+.vdh-copy-btn:active {
+	transform: translateY(1px);
+}
+
+.vdh-progress {
+	width: 100%;
+	margin-top: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.vdh-progress-speed {
+	font-size: 12px;
+	font-weight: 700;
+	color: rgba(15, 23, 42, 0.55);
+	line-height: 1;
+	font-variant-numeric: tabular-nums;
 }
 
 .vdh-progress-track {
-	flex: 1;
-	height: 10px;
-	background: rgba(15, 23, 42, 0.12);
+	width: 100%;
+	height: 22px;
+	background: rgba(15, 23, 42, 0.08);
 	border-radius: 999px;
 	overflow: hidden;
+	position: relative;
 }
 
 .vdh-progress-bar {
-	height: 10px;
+	height: 22px;
 	width: 0%;
 	border-radius: 999px;
-	background: linear-gradient(90deg, #22c55e 0%, #3b82f6 35%, #2563eb 100%);
-	transition: width 120ms ease;
+	background: linear-gradient(90deg, var(--vdh-accent) 0%, var(--vdh-accent-2) 100%);
+	transition: width 180ms cubic-bezier(0.22, 1, 0.36, 1);
+	will-change: width;
 }
 
-.vdh-progress-right {
-	min-width: 72px;
-	display: flex;
-	flex-direction: column;
-	align-items: flex-end;
-}
-
-.vdh-progress-percent {
-	font-size: 18px;
-	font-weight: 900;
-	color: rgba(15, 23, 42, 0.9);
-	line-height: 1;
+.vdh-progress-inside {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	padding: 3px 14px;
+	border-radius: 999px;
+	background: rgba(15, 23, 42, 0.28);
+	color: rgba(255, 255, 255, 0.98);
+	font-size: 13px;
+	font-weight: 800;
+	letter-spacing: 0.3px;
+	line-height: 1.2;
+	pointer-events: none;
+	user-select: none;
 }
 
 .vdh-progress-stage {
-	margin-top: 4px;
-	font-size: 12px;
-	font-weight: 800;
-	color: rgba(15, 23, 42, 0.6);
+	font-size: 11px;
+	font-weight: 600;
+	color: rgba(15, 23, 42, 0.55);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .vdh-mgr-bottom {
@@ -264,7 +324,7 @@ body {
 .vdh-mgr-bottom-inner {
 	padding: 16px 16px 14px;
 	border-top: 1px solid rgba(15, 23, 42, 0.1);
-	background: linear-gradient(to bottom, rgba(249, 250, 251, 0.6), rgba(255, 255, 255, 1));
+	background: rgba(255, 255, 255, 0.9);
 }
 
 .vdh-mgr-bottom-inner .vdh-mgr-doc-inline {
@@ -273,6 +333,8 @@ body {
 }
 
 .vdh-mgr-bottom-row {
+	width: 92%;
+	margin: 0 auto;
 	display: flex;
 	align-items: center;
 	gap: 10px;
@@ -320,6 +382,9 @@ body {
 }
 
 .vdh-mgr-tips {
+	width: 92%;
+	margin-left: auto;
+	margin-right: auto;
 	margin-top: 10px;
 	font-size: 12px;
 	color: rgba(15, 23, 42, 0.6);
@@ -353,6 +418,9 @@ body {
 }
 
 .vdh-mgr-save-row {
+	width: 92%;
+	margin-left: auto;
+	margin-right: auto;
 	margin-top: 12px;
 	display: flex;
 	align-items: center;
