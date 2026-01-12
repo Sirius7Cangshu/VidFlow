@@ -23,12 +23,12 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/example/video-download-helper"
+		"url": "https://github.com/Sirius7Cangshu/VidFlow"
 	},
 	"bugs": {
-		"url": "https://github.com/example/video-download-helper/issues"
+		"url": "https://github.com/Sirius7Cangshu/VidFlow/issues"
 	},
-	"homepage": "https://github.com/example/video-download-helper#readme",
+	"homepage": "https://github.com/Sirius7Cangshu/VidFlow#readme",
 	"devDependencies": {
 		"@napi-rs/canvas": "^0.1.88",
 		"eslint": "^8.0.0",
