@@ -1,6 +1,6 @@
 {
 	"manifest_version": 3,
-	"name": "Video Download Helper",
+	"name": "VidFlow",
 	"version": "1.0.0",
 	"description": "Advanced video downloader with multi-quality support for all websites except YouTube",
 	"permissions": [
@@ -45,7 +45,7 @@
 	],
 	"action": {
 		"default_popup": "popup.html",
-		"default_title": "Video Download Helper",
+		"default_title": "VidFlow",
 		"default_icon": {
 			"16": "icons/icon16.png",
 			"32": "icons/icon32.png",
