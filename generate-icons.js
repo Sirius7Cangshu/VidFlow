@@ -8,109 +8,97 @@ function drawIcon(canvas, size) {
 
 	const s = size / 128;
 
-	// Background gradient
-	const bgGrad = ctx.createLinearGradient(0, 0, size, size);
-	bgGrad.addColorStop(0, '#667EEA');
-	bgGrad.addColorStop(0.5, '#764BA2');
-	bgGrad.addColorStop(1, '#F093FB');
+	// Sophisticated deep teal gradient
+	const dropGrad = ctx.createLinearGradient(0, 0, size, size);
+	dropGrad.addColorStop(0, '#2D9596');
+	dropGrad.addColorStop(0.35, '#1E6F72');
+	dropGrad.addColorStop(0.7, '#145A5E');
+	dropGrad.addColorStop(1, '#0D3D3F');
 
-	// Rounded rectangle
-	const r = 26 * s;
-	const x = 8 * s, y = 8 * s, w = 112 * s, h = 112 * s;
+	// Draw water drop shape with shadow
+	ctx.shadowColor = 'rgba(13, 61, 63, 0.3)';
+	ctx.shadowBlur = 5 * s;
+	ctx.shadowOffsetY = 3 * s;
+	
+	drawWaterDrop(ctx, s);
+	ctx.fillStyle = dropGrad;
+	ctx.fill();
+	
+	// Reset shadow
+	ctx.shadowColor = 'transparent';
+	ctx.shadowBlur = 0;
+	ctx.shadowOffsetY = 0;
+
+	// Subtle inner depth overlay
+	const innerDepth = ctx.createRadialGradient(51 * s, 45 * s, 0, 64 * s, 64 * s, 83 * s);
+	innerDepth.addColorStop(0, 'rgba(58, 171, 172, 0.25)');
+	innerDepth.addColorStop(1, 'rgba(13, 61, 63, 0.3)');
+	
+	drawWaterDrop(ctx, s);
+	ctx.fillStyle = innerDepth;
+	ctx.fill();
+
+	// Glass highlight
+	const highlightGrad = ctx.createLinearGradient(26 * s, 0, 102 * s, size);
+	highlightGrad.addColorStop(0, 'rgba(255,255,255,0.4)');
+	highlightGrad.addColorStop(0.5, 'rgba(255,255,255,0.1)');
+	highlightGrad.addColorStop(1, 'rgba(255,255,255,0)');
 	
 	ctx.beginPath();
-	ctx.moveTo(x + r, y);
-	ctx.lineTo(x + w - r, y);
-	ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-	ctx.lineTo(x + w, y + h - r);
-	ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-	ctx.lineTo(x + r, y + h);
-	ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-	ctx.lineTo(x, y + r);
-	ctx.quadraticCurveTo(x, y, x + r, y);
+	ctx.moveTo(64 * s, 14 * s);
+	ctx.bezierCurveTo(64 * s, 14 * s, 32 * s, 48 * s, 28 * s, 72 * s);
+	ctx.bezierCurveTo(28 * s, 72 * s, 38 * s, 42 * s, 64 * s, 18 * s);
 	ctx.closePath();
-
-	ctx.fillStyle = bgGrad;
+	ctx.fillStyle = highlightGrad;
 	ctx.fill();
 
-	// Glass shine
-	const shineGrad = ctx.createLinearGradient(0, y, 0, y + h / 2);
-	shineGrad.addColorStop(0, 'rgba(255,255,255,0.35)');
-	shineGrad.addColorStop(0.5, 'rgba(255,255,255,0.1)');
-	shineGrad.addColorStop(1, 'rgba(255,255,255,0)');
-	
+	// Small highlight accent
+	ctx.save();
+	ctx.translate(38 * s, 50 * s);
+	ctx.rotate(-30 * Math.PI / 180);
 	ctx.beginPath();
-	ctx.moveTo(x + r, y);
-	ctx.lineTo(x + w - r, y);
-	ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-	ctx.lineTo(x + w, y + h / 2);
-	ctx.lineTo(x, y + h / 2);
-	ctx.lineTo(x, y + r);
-	ctx.quadraticCurveTo(x, y, x + r, y);
-	ctx.closePath();
-	ctx.fillStyle = shineGrad;
+	ctx.ellipse(0, 0, 6 * s, 4 * s, 0, 0, Math.PI * 2);
+	ctx.fillStyle = 'rgba(255,255,255,0.25)';
 	ctx.fill();
+	ctx.restore();
 
-	// Play button circle background
-	ctx.beginPath();
-	ctx.arc(64 * s, 52 * s, 28 * s, 0, Math.PI * 2);
-	ctx.fillStyle = 'rgba(255,255,255,0.2)';
-	ctx.fill();
-
-	// Play button circle
-	ctx.beginPath();
-	ctx.arc(64 * s, 52 * s, 24 * s, 0, Math.PI * 2);
+	// Play triangle - directly on drop, no background circle
 	ctx.fillStyle = 'rgba(255,255,255,0.95)';
-	ctx.fill();
-
-	// Play triangle with gradient
-	const playGrad = ctx.createLinearGradient(58 * s, 40 * s, 76 * s, 64 * s);
-	playGrad.addColorStop(0, '#667EEA');
-	playGrad.addColorStop(0.5, '#764BA2');
-	playGrad.addColorStop(1, '#F093FB');
-	
-	ctx.fillStyle = playGrad;
 	ctx.beginPath();
-	ctx.moveTo(58 * s, 40 * s);
-	ctx.lineTo(58 * s, 64 * s);
-	ctx.lineTo(76 * s, 52 * s);
+	ctx.moveTo(52 * s, 58 * s);
+	ctx.lineTo(52 * s, 98 * s);
+	ctx.lineTo(84 * s, 78 * s);
 	ctx.closePath();
-	ctx.fill();
-
-	// Download elements
-	ctx.fillStyle = 'rgba(255,255,255,0.95)';
-
-	// Arrow stem
-	roundRect(ctx, 60 * s, 84 * s, 8 * s, 16 * s, 2 * s);
-	ctx.fill();
-
-	// Arrow head
-	ctx.beginPath();
-	ctx.moveTo(64 * s, 108 * s);
-	ctx.lineTo(52 * s, 96 * s);
-	ctx.lineTo(56 * s, 92 * s);
-	ctx.lineTo(64 * s, 100 * s);
-	ctx.lineTo(72 * s, 92 * s);
-	ctx.lineTo(76 * s, 96 * s);
-	ctx.closePath();
-	ctx.fill();
-
-	// Base line
-	roundRect(ctx, 48 * s, 104 * s, 32 * s, 4 * s, 2 * s);
 	ctx.fill();
 }
 
-function roundRect(ctx, x, y, w, h, r) {
+function drawWaterDrop(ctx, s) {
 	ctx.beginPath();
-	ctx.moveTo(x + r, y);
-	ctx.lineTo(x + w - r, y);
-	ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-	ctx.lineTo(x + w, y + h - r);
-	ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-	ctx.lineTo(x + r, y + h);
-	ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-	ctx.lineTo(x, y + r);
-	ctx.quadraticCurveTo(x, y, x + r, y);
+	ctx.moveTo(64 * s, 8 * s);
+	// Left curve
+	ctx.bezierCurveTo(
+		64 * s, 8 * s,
+		20 * s, 52 * s,
+		20 * s, 80 * s
+	);
+	// Bottom left curve
+	ctx.bezierCurveTo(
+		20 * s, 104 * s,
+		40 * s, 120 * s,
+		64 * s, 120 * s
+	);
+	// Bottom right curve
+	ctx.bezierCurveTo(
+		88 * s, 120 * s,
+		108 * s, 104 * s,
+		108 * s, 80 * s
+	);
+	// Right curve back to top
+	ctx.bezierCurveTo(
+		108 * s, 52 * s,
+		64 * s, 8 * s,
+		64 * s, 8 * s
+	);
 	ctx.closePath();
 }
 
