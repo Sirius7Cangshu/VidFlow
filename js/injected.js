@@ -40,16 +40,74 @@
 
 			// Hook into Fetch API
 			const originalFetch = window.fetch;
+			let hasLoggedInsecureAdspowerFetch = false;
 			window.fetch = async function (...args) {
 				const [resource] = args;
-				const url = typeof resource === 'string' ? resource : resource.url;
+				let url = '';
+				try {
+					if (typeof resource === 'string') {
+						url = resource;
+					} else if (resource && typeof resource === 'object') {
+						// Request / URL / custom RequestInfo
+						if (typeof resource.url === 'string') {
+							url = resource.url;
+						} else if (typeof resource.href === 'string') {
+							url = resource.href;
+						} else {
+							url = String(resource);
+						}
+					} else {
+						url = String(resource);
+					}
+				} catch (e) {
+					// ignore
+				}
+
+				// Prevent noisy Mixed Content errors caused by insecure local adspower calls on HTTPS pages.
+				// We short-circuit the request (no network call) so the browser won't emit Mixed Content warnings.
+				const normalizedUrl = typeof url === 'string' ? url.trim() : '';
+				const normalizedUrlLower = normalizedUrl.toLowerCase();
+				const isInsecureAdspowerFetch = !!normalizedUrlLower &&
+					normalizedUrlLower.startsWith('http://') &&
+					normalizedUrlLower.includes('adspower.net');
+				if (isInsecureAdspowerFetch) {
+					if (!hasLoggedInsecureAdspowerFetch) {
+						hasLoggedInsecureAdspowerFetch = true;
+						console.groupCollapsed('VidFlow: Blocked insecure adspower fetch (Mixed Content)', normalizedUrl);
+						console.trace('caller');
+						console.groupEnd();
+					}
+					// Return a safe JSON response to avoid follow-up `.json()` parse errors in the caller.
+					return new Response('{}', {
+						status: 200,
+						headers: { 'Content-Type': 'application/json' }
+					});
+				}
 
 				if (VideoInjector.isVideoRequest(url)) {
 					console.log('Video fetch detected:', url);
 					VideoInjector.reportVideoFound(url, 'fetch');
 				}
 
-				return originalFetch.apply(this, args);
+				try {
+					return await originalFetch.apply(this, args);
+				} catch (err) {
+					// Fallback: if the request is adspower-related but we failed to match earlier (unexpected shapes),
+					// still swallow the error to prevent Uncaught (in promise) noise.
+					if (normalizedUrlLower.includes('adspower.net')) {
+						if (!hasLoggedInsecureAdspowerFetch) {
+							hasLoggedInsecureAdspowerFetch = true;
+							console.groupCollapsed('VidFlow: Suppressed adspower fetch failure', normalizedUrl || url);
+							console.trace('caller');
+							console.groupEnd();
+						}
+						return new Response('{}', {
+							status: 200,
+							headers: { 'Content-Type': 'application/json' }
+						});
+					}
+					throw err;
+				}
 			};
 		},
 
