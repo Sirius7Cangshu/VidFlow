@@ -1,68 +1,74 @@
 <svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- 
+    VidFlow Icon - Fluid Squircle Edition
+    Size-Adaptive Design (this is 128px full-detail version)
+    Colors: Deep Blue (#1D4ED8) → Electric Blue (#3B82F6) → Cyan (#06B6D4)
+  -->
+  
   <defs>
-    <!-- Sophisticated deep teal gradient -->
-    <linearGradient id="dropGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#2D9596" />
-      <stop offset="35%" stop-color="#1E6F72" />
-      <stop offset="70%" stop-color="#145A5E" />
-      <stop offset="100%" stop-color="#0D3D3F" />
+    <!-- Main Gradient -->
+    <linearGradient id="mainGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1D4ED8" />
+      <stop offset="50%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#06B6D4" />
     </linearGradient>
     
-    <!-- Subtle highlight gradient -->
-    <linearGradient id="highlightGradient" x1="20%" y1="0%" x2="80%" y2="100%">
-      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.4" />
-      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.1" />
+    <!-- Top Gloss -->
+    <linearGradient id="glossGrad" x1="50%" y1="0%" x2="50%" y2="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.25" />
       <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
     </linearGradient>
     
-    <!-- Drop shadow -->
-    <filter id="dropShadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#0D3D3F" flood-opacity="0.3" />
+    <!-- Wave Gradient -->
+    <linearGradient id="waveGrad" x1="50%" y1="70%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.25" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.05" />
+    </linearGradient>
+    
+    <!-- Squircle Clip -->
+    <clipPath id="squircleClip">
+      <rect x="8" y="8" width="112" height="112" rx="24" ry="24"/>
+    </clipPath>
+    
+    <!-- Shadow Filter -->
+    <filter id="shadow" x="-20%" y="-10%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="6" stdDeviation="12" flood-color="#06B6D4" flood-opacity="0.35"/>
     </filter>
     
-    <!-- Subtle inner depth -->
-    <radialGradient id="innerDepth" cx="40%" cy="35%" r="65%">
-      <stop offset="0%" stop-color="#3AABAC" stop-opacity="0.25" />
-      <stop offset="100%" stop-color="#0D3D3F" stop-opacity="0.3" />
-    </radialGradient>
+    <!-- Play Button Shadow -->
+    <filter id="playShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.2"/>
+    </filter>
   </defs>
   
-  <!-- Water drop shape - main body -->
-  <path 
-    d="M64 8
-       C64 8, 20 52, 20 80
-       C20 104, 40 120, 64 120
-       C88 120, 108 104, 108 80
-       C108 52, 64 8, 64 8Z" 
-    fill="url(#dropGradient)" 
-    filter="url(#dropShadow)" 
-  />
+  <!-- Main Squircle Background -->
+  <rect x="8" y="8" width="112" height="112" rx="24" ry="24" 
+        fill="url(#mainGrad)" filter="url(#shadow)" />
   
-  <!-- Inner depth overlay -->
-  <path 
-    d="M64 8
-       C64 8, 20 52, 20 80
-       C20 104, 40 120, 64 120
-       C88 120, 108 104, 108 80
-       C108 52, 64 8, 64 8Z" 
-    fill="url(#innerDepth)" 
-  />
+  <!-- Content Clipped to Squircle -->
+  <g clip-path="url(#squircleClip)">
+    <!-- Wave 1 (Back) -->
+    <path d="M 0 76.8 C 38.4 70.4 76.8 96 128 83.2 L 128 128 L 0 128 Z" 
+          fill="#FFFFFF" fill-opacity="0.08" />
+    
+    <!-- Wave 2 (Front) -->
+    <path d="M 0 96 C 51.2 83.2 89.6 108.8 128 89.6 L 128 128 L 0 128 Z" 
+          fill="url(#waveGrad)" />
+    
+    <!-- Top Gloss -->
+    <ellipse cx="64" cy="8" rx="90" ry="56" fill="url(#glossGrad)" />
+  </g>
   
-  <!-- Glass highlight on water drop -->
-  <path 
-    d="M64 14
-       C64 14, 32 48, 28 72
-       C28 72, 38 42, 64 18
-       C64 18, 64 14, 64 14Z" 
-    fill="url(#highlightGradient)" 
-  />
+  <!-- Play Button (Rounded Triangle) -->
+  <g transform="translate(68, 64)" filter="url(#playShadow)">
+    <path d="M -15.6 -18 
+             L -15.6 14.4 
+             Q -15.6 18 -12 16.4 
+             L 12.4 2.4 
+             Q 15.6 0 12.4 -2.4 
+             L -12 -16.4 
+             Q -15.6 -18 -15.6 -14.4 Z" 
+          fill="#FFFFFF" />
+  </g>
   
-  <!-- Small highlight accent -->
-  <ellipse cx="38" cy="50" rx="6" ry="4" fill="rgba(255,255,255,0.25)" transform="rotate(-30 38 50)" />
-  
-  <!-- Play triangle - directly on drop, no background circle -->
-  <path 
-    d="M52 58L52 98L84 78Z" 
-    fill="rgba(255,255,255,0.95)"
-  />
 </svg>

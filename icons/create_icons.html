@@ -2,37 +2,41 @@
 <html>
 
 <head>
-	<title>Generate Icons for VidFlow</title>
+	<title>VidFlow Icon Generator</title>
 	<style>
 		body {
 			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-			max-width: 600px;
+			max-width: 800px;
 			margin: 40px auto;
 			padding: 20px;
-			background: linear-gradient(135deg, #0D3D3F 0%, #1E6F72 100%);
+			background: linear-gradient(135deg, #1D4ED8 0%, #06B6D4 100%);
 			min-height: 100vh;
 			color: #fff;
 		}
 
 		h1 {
-			color: #5ABFC0;
-			text-shadow: 0 0 20px rgba(90, 191, 192, 0.4);
+			color: #FFF;
+			text-shadow: 0 2px 20px rgba(6, 182, 212, 0.6);
+			margin-bottom: 10px;
 		}
 
-		p {
-			color: #9DCFD0;
+		.subtitle {
+			color: rgba(255, 255, 255, 0.8);
+			font-size: 14px;
+			margin-bottom: 30px;
 		}
 
 		.preview {
 			display: flex;
-			gap: 20px;
+			gap: 24px;
 			align-items: flex-end;
 			margin: 30px 0;
-			padding: 20px;
-			background: rgba(255, 255, 255, 0.05);
-			border-radius: 12px;
-			box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-			border: 1px solid rgba(90, 191, 192, 0.2);
+			padding: 30px;
+			background: rgba(255, 255, 255, 0.1);
+			backdrop-filter: blur(10px);
+			border-radius: 16px;
+			box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+			border: 1px solid rgba(255, 255, 255, 0.2);
 		}
 
 		.preview-item {
@@ -41,30 +45,44 @@
 
 		.preview-item span {
 			display: block;
-			margin-top: 8px;
+			margin-top: 12px;
 			font-size: 12px;
-			color: #9DCFD0;
+			color: rgba(255, 255, 255, 0.9);
+			font-weight: 600;
+		}
+
+		.preview-item small {
+			display: block;
+			margin-top: 4px;
+			font-size: 10px;
+			color: rgba(255, 255, 255, 0.6);
 		}
 
 		canvas {
 			border-radius: 8px;
+			background: rgba(0, 0, 0, 0.2);
 		}
 
 		button {
-			background: linear-gradient(135deg, #2D9596 0%, #1E6F72 50%, #145A5E 100%);
-			color: white;
+			background: #FFFFFF;
+			color: #1D4ED8;
 			border: none;
-			padding: 12px 24px;
-			border-radius: 8px;
+			padding: 14px 28px;
+			border-radius: 12px;
 			font-size: 16px;
 			cursor: pointer;
-			transition: transform 0.2s, box-shadow 0.2s;
+			transition: all 0.2s;
 			font-weight: 600;
+			box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 		}
 
 		button:hover {
 			transform: translateY(-2px);
-			box-shadow: 0 4px 20px rgba(45, 149, 150, 0.4);
+			box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+		}
+
+		button:active {
+			transform: translateY(0);
 		}
 
 		#downloads {
@@ -74,47 +92,97 @@
 		#downloads a {
 			display: inline-block;
 			margin: 8px 8px 8px 0;
-			padding: 8px 16px;
-			background: linear-gradient(135deg, #145A5E, #0D3D3F);
+			padding: 10px 20px;
+			background: rgba(255, 255, 255, 0.15);
+			backdrop-filter: blur(10px);
 			color: white;
 			text-decoration: none;
-			border-radius: 6px;
+			border-radius: 8px;
 			font-size: 14px;
 			transition: all 0.2s;
+			border: 1px solid rgba(255, 255, 255, 0.2);
 		}
 
 		#downloads a:hover {
-			background: linear-gradient(135deg, #1E6F72, #145A5E);
-			box-shadow: 0 2px 12px rgba(45, 149, 150, 0.3);
+			background: rgba(255, 255, 255, 0.25);
+			transform: translateY(-1px);
+		}
+
+		.info {
+			margin-top: 30px;
+			padding: 20px;
+			background: rgba(255, 255, 255, 0.1);
+			backdrop-filter: blur(10px);
+			border-radius: 12px;
+			border: 1px solid rgba(255, 255, 255, 0.2);
+			font-size: 14px;
+			line-height: 1.6;
+		}
+
+		.info h3 {
+			margin: 0 0 10px 0;
+			color: #FFF;
+		}
+
+		.info ul {
+			margin: 10px 0;
+			padding-left: 20px;
+			color: rgba(255, 255, 255, 0.9);
+		}
+
+		.info li {
+			margin: 5px 0;
+		}
+
+		.info code {
+			background: rgba(0, 0, 0, 0.2);
+			padding: 2px 6px;
+			border-radius: 4px;
+			font-family: 'SF Mono', Monaco, monospace;
 		}
 	</style>
 </head>
 
 <body>
-	<h1>💧 VidFlow - Icon Generator</h1>
-	<p>Click the button to generate PNG icons from the water drop design.</p>
+	<h1>🌊 VidFlow - Icon Generator</h1>
+	<div class="subtitle">Fluid Squircle Design - Size-Adaptive Edition</div>
 
 	<div class="preview">
 		<div class="preview-item">
 			<canvas id="canvas128" width="128" height="128"></canvas>
 			<span>128px</span>
+			<small>Full detail</small>
 		</div>
 		<div class="preview-item">
 			<canvas id="canvas48" width="48" height="48"></canvas>
 			<span>48px</span>
+			<small>Medium detail</small>
 		</div>
 		<div class="preview-item">
 			<canvas id="canvas32" width="32" height="32"></canvas>
 			<span>32px</span>
+			<small>Simplified</small>
 		</div>
 		<div class="preview-item">
 			<canvas id="canvas16" width="16" height="16"></canvas>
 			<span>16px</span>
+			<small>Minimal</small>
 		</div>
 	</div>
 
 	<button onclick="generateIcons()">⬇️ Generate & Download All Icons</button>
 	<div id="downloads"></div>
+
+	<div class="info">
+		<h3>✨ Size-Adaptive Design</h3>
+		<ul>
+			<li><strong>128px:</strong> Full effects - waves, gloss, shadow, rounded play button</li>
+			<li><strong>48px:</strong> Moderate - front wave, gloss, subtle shadow</li>
+			<li><strong>32px:</strong> Simplified - gloss only, no waves</li>
+			<li><strong>16px:</strong> Minimal - gradient + sharp play triangle</li>
+		</ul>
+		<p>Colors: <code>#1D4ED8</code> → <code>#3B82F6</code> → <code>#06B6D4</code></p>
+	</div>
 
 	<script>
 		function drawIcon(canvas, size) {
@@ -122,107 +190,163 @@
 			canvas.width = size;
 			canvas.height = size;
 			ctx.clearRect(0, 0, size, size);
+			ctx.imageSmoothingEnabled = true;
+			if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
 
 			const s = size / 128;
 
-			// Sophisticated deep teal gradient
-			const dropGrad = ctx.createLinearGradient(0, 0, size, size);
-			dropGrad.addColorStop(0, '#2D9596');
-			dropGrad.addColorStop(0.35, '#1E6F72');
-			dropGrad.addColorStop(0.7, '#145A5E');
-			dropGrad.addColorStop(1, '#0D3D3F');
+			// Size-adaptive parameters
+			const isTiny = size <= 16;
+			const isSmall = size <= 32;
+			const isMedium = size <= 48;
 
-			// Draw water drop shape with shadow
-			ctx.shadowColor = 'rgba(13, 61, 63, 0.3)';
-			ctx.shadowBlur = 5 * s;
-			ctx.shadowOffsetY = 3 * s;
-			
-			drawWaterDrop(ctx, s);
-			ctx.fillStyle = dropGrad;
-			ctx.fill();
-			
-			// Reset shadow
-			ctx.shadowColor = 'transparent';
-			ctx.shadowBlur = 0;
-			ctx.shadowOffsetY = 0;
+			const padding = isTiny ? 1 : isSmall ? 2 : 8 * s;
+			const drawSize = size - (padding * 2);
+			const x = padding;
+			const y = padding;
+			const radius = isTiny ? 4 : isSmall ? 6 : 24 * s;
 
-			// Subtle inner depth overlay
-			const innerDepth = ctx.createRadialGradient(51 * s, 45 * s, 0, 64 * s, 64 * s, 83 * s);
-			innerDepth.addColorStop(0, 'rgba(58, 171, 172, 0.25)');
-			innerDepth.addColorStop(1, 'rgba(13, 61, 63, 0.3)');
-			
-			drawWaterDrop(ctx, s);
-			ctx.fillStyle = innerDepth;
-			ctx.fill();
+			// 1. Shadow (skip for tiny/small)
+			if (!isSmall) {
+				ctx.save();
+				ctx.shadowColor = 'rgba(6, 182, 212, 0.35)';
+				ctx.shadowBlur = isMedium ? 6 * s : 12 * s;
+				ctx.shadowOffsetY = isMedium ? 3 * s : 6 * s;
 
-			// Glass highlight
-			const highlightGrad = ctx.createLinearGradient(26 * s, 0, 102 * s, size);
-			highlightGrad.addColorStop(0, 'rgba(255,255,255,0.4)');
-			highlightGrad.addColorStop(0.5, 'rgba(255,255,255,0.1)');
-			highlightGrad.addColorStop(1, 'rgba(255,255,255,0)');
-			
-			ctx.beginPath();
-			ctx.moveTo(64 * s, 14 * s);
-			ctx.bezierCurveTo(64 * s, 14 * s, 32 * s, 48 * s, 28 * s, 72 * s);
-			ctx.bezierCurveTo(28 * s, 72 * s, 38 * s, 42 * s, 64 * s, 18 * s);
-			ctx.closePath();
-			ctx.fillStyle = highlightGrad;
+				drawSquircle(ctx, x, y, drawSize, drawSize, radius);
+				ctx.fillStyle = '#000000';
+				ctx.fill();
+				ctx.restore();
+			}
+
+			// 2. Main Gradient Background
+			const bgGrad = ctx.createLinearGradient(x, y, x + drawSize, y + drawSize);
+			bgGrad.addColorStop(0, '#1D4ED8');
+			bgGrad.addColorStop(0.5, '#3B82F6');
+			bgGrad.addColorStop(1, '#06B6D4');
+
+			drawSquircle(ctx, x, y, drawSize, drawSize, radius);
+			ctx.fillStyle = bgGrad;
 			ctx.fill();
 
-			// Small highlight accent
+			// 3. Details (adaptive)
+			if (!isTiny) {
+				ctx.save();
+				drawSquircle(ctx, x, y, drawSize, drawSize, radius);
+				ctx.clip();
+
+				// Waves (medium/large only)
+				if (!isSmall) {
+					if (!isMedium) {
+						// Wave 1 (Back) - 128px only
+						ctx.beginPath();
+						ctx.moveTo(0, size * 0.6);
+						ctx.bezierCurveTo(size * 0.3, size * 0.55, size * 0.6, size * 0.75, size, size * 0.65);
+						ctx.lineTo(size, size);
+						ctx.lineTo(0, size);
+						ctx.closePath();
+						ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+						ctx.fill();
+					}
+
+					// Wave 2 (Front)
+					ctx.beginPath();
+					ctx.moveTo(0, size * 0.75);
+					ctx.bezierCurveTo(size * 0.4, size * 0.65, size * 0.7, size * 0.85, size, size * 0.7);
+					ctx.lineTo(size, size);
+					ctx.lineTo(0, size);
+					ctx.closePath();
+
+					const waveGrad = ctx.createLinearGradient(0, size * 0.7, 0, size);
+					const waveOpacity = isMedium ? 0.18 : 0.25;
+					waveGrad.addColorStop(0, `rgba(255, 255, 255, ${waveOpacity})`);
+					waveGrad.addColorStop(1, 'rgba(255, 255, 255, 0.05)');
+					ctx.fillStyle = waveGrad;
+					ctx.fill();
+				}
+
+				// Top Gloss
+				const glossStrength = isSmall ? 0.15 : isMedium ? 0.2 : 0.25;
+				const glossGrad = ctx.createLinearGradient(x, y, x, y + drawSize * 0.5);
+				glossGrad.addColorStop(0, `rgba(255, 255, 255, ${glossStrength})`);
+				glossGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+				ctx.beginPath();
+				ctx.ellipse(size / 2, y, drawSize * 0.8, drawSize * 0.5, 0, 0, Math.PI * 2);
+				ctx.fillStyle = glossGrad;
+				ctx.fill();
+
+				ctx.restore();
+			}
+
+			// 4. Play Button
+			const centerX = size / 2;
+			const centerY = size / 2;
+
+			const playScale = isTiny ? 0.65 : isSmall ? 0.55 : isMedium ? 0.38 : 0.28;
+			const playSize = size * playScale;
+
 			ctx.save();
-			ctx.translate(38 * s, 50 * s);
-			ctx.rotate(-30 * Math.PI / 180);
-			ctx.beginPath();
-			ctx.ellipse(0, 0, 6 * s, 4 * s, 0, 0, Math.PI * 2);
-			ctx.fillStyle = 'rgba(255,255,255,0.25)';
+			const offsetX = isTiny ? 1 : isSmall ? 1.5 * s : 4 * s;
+			ctx.translate(centerX + offsetX, centerY);
+
+			if (!isSmall) {
+				ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+				ctx.shadowBlur = isMedium ? 2 * s : 4 * s;
+				ctx.shadowOffsetY = isMedium ? 1 * s : 2 * s;
+			}
+
+			const h = playSize;
+			const w = playSize * 0.866;
+
+			if (isTiny || isSmall) {
+				// Sharp triangle
+				ctx.beginPath();
+				ctx.moveTo(-w / 2, -h / 2);
+				ctx.lineTo(-w / 2, h / 2);
+				ctx.lineTo(w / 2, 0);
+				ctx.closePath();
+			} else {
+				// Rounded triangle
+				const r = Math.max(2, playSize * 0.1);
+				const p1x = -w / 2; const p1y = -h / 2;
+				const p2x = -w / 2; const p2y = h / 2;
+				const p3x = w / 2; const p3y = 0;
+
+				ctx.beginPath();
+				ctx.moveTo(p1x, p1y + r);
+				ctx.lineTo(p2x, p2y - r);
+				ctx.quadraticCurveTo(p2x, p2y, p2x + r, p2y - (r * 0.5));
+				ctx.lineTo(p3x - r, p3y + (r * 0.5));
+				ctx.quadraticCurveTo(p3x, p3y, p3x - r, p3y - (r * 0.5));
+				ctx.lineTo(p1x + r, p1y + (r * 0.5));
+				ctx.quadraticCurveTo(p1x, p1y, p1x, p1y + r);
+				ctx.closePath();
+			}
+
+			ctx.fillStyle = '#FFFFFF';
 			ctx.fill();
 			ctx.restore();
-
-			// Play triangle - directly on drop, no background circle
-			ctx.fillStyle = 'rgba(255,255,255,0.95)';
-			ctx.beginPath();
-			ctx.moveTo(52 * s, 58 * s);
-			ctx.lineTo(52 * s, 98 * s);
-			ctx.lineTo(84 * s, 78 * s);
-			ctx.closePath();
-			ctx.fill();
 		}
 
-		function drawWaterDrop(ctx, s) {
+		function drawSquircle(ctx, x, y, w, h, r) {
 			ctx.beginPath();
-			ctx.moveTo(64 * s, 8 * s);
-			// Left curve
-			ctx.bezierCurveTo(
-				64 * s, 8 * s,
-				20 * s, 52 * s,
-				20 * s, 80 * s
-			);
-			// Bottom left curve
-			ctx.bezierCurveTo(
-				20 * s, 104 * s,
-				40 * s, 120 * s,
-				64 * s, 120 * s
-			);
-			// Bottom right curve
-			ctx.bezierCurveTo(
-				88 * s, 120 * s,
-				108 * s, 104 * s,
-				108 * s, 80 * s
-			);
-			// Right curve back to top
-			ctx.bezierCurveTo(
-				108 * s, 52 * s,
-				64 * s, 8 * s,
-				64 * s, 8 * s
-			);
+			ctx.moveTo(x + r, y);
+			ctx.lineTo(x + w - r, y);
+			ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+			ctx.lineTo(x + w, y + h - r);
+			ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+			ctx.lineTo(x + r, y + h);
+			ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+			ctx.lineTo(x, y + r);
+			ctx.quadraticCurveTo(x, y, x + r, y);
 			ctx.closePath();
 		}
 
 		function generateIcons() {
 			const sizes = [16, 32, 48, 128];
 			const downloads = document.getElementById('downloads');
-			downloads.innerHTML = '<strong>Click to download:</strong><br>';
+			downloads.innerHTML = '<strong style="display:block;margin-bottom:10px;">Click to download:</strong>';
 
 			sizes.forEach(size => {
 				const canvas = document.getElementById('canvas' + size);
@@ -239,7 +363,6 @@
 			});
 		}
 
-		// Draw preview on load
 		window.onload = function () {
 			[128, 48, 32, 16].forEach(size => {
 				const canvas = document.getElementById('canvas' + size);

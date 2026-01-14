@@ -836,21 +836,21 @@ if (typeof window.VideoDetector !== 'undefined') {
 			});
 		}
 
-	notifyVideoDetected(videoInfo) {
-		// Notify background script about new video
-		try {
-			if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-				chrome.runtime.sendMessage({
-					action: 'videoDetected',
-					data: videoInfo
-				}).catch(() => {
-					// Background script might not be ready, ignore error
-				});
+		notifyVideoDetected(videoInfo) {
+			// Notify background script about new video
+			try {
+				if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+					chrome.runtime.sendMessage({
+						action: 'videoDetected',
+						data: videoInfo
+					}).catch(() => {
+						// Background script might not be ready, ignore error
+					});
+				}
+			} catch (_) {
+				// Ignore errors in restricted contexts
 			}
-		} catch (_) {
-			// Ignore errors in restricted contexts
 		}
-	}
 
 		startDetection() {
 			// Initial detection
